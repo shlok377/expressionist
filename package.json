@@ -1,0 +1,30 @@
+{
+  "name": "expressionist",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:frontend": "vite",
+    "dev:backend": "node server/index.js",
+    "dev": "vite",
+    "server": "node server/index.js",
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "lucide-react": "^1.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.1"
+  }
+}
