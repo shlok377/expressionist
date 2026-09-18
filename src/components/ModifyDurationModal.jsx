@@ -27,24 +27,24 @@ export default function ModifyDurationModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-[#151824] border border-[#272e42] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className="bg-[#282a2f] border border-[#44474f] rounded-[28px] w-full max-w-md shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#23293c] flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-              <Clock className="w-4 h-4" />
+        <div className="px-6 py-5 border-b border-[#44474f] flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-[#3f4759] text-[#dbe2f9] flex items-center justify-center">
+              <Clock className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Modify Clip Duration</h2>
-              <p className="text-xs text-slate-400 truncate max-w-[240px]">
+              <h2 className="text-lg font-medium text-[#e2e2e9]">Modify Duration</h2>
+              <p className="text-xs text-[#c4c6d0] truncate max-w-[240px]">
                 {clip.expression.name}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#23293c] transition"
+            className="w-9 h-9 rounded-full text-[#c4c6d0] hover:text-[#e2e2e9] hover:bg-[#33353a] flex items-center justify-center transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -52,19 +52,19 @@ export default function ModifyDurationModal({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Main Duration Display & Stepper */}
-          <div className="bg-[#11141e] border border-[#242a3e] rounded-xl p-5 text-center">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
+          {/* Main Duration Display & Slider */}
+          <div className="bg-[#1d2024] border border-[#44474f] rounded-2xl p-5 text-center">
+            <span className="text-[11px] font-medium text-[#8e9099] uppercase tracking-wider block mb-1">
               Active Duration
             </span>
             <div className="flex items-baseline justify-center space-x-1">
-              <span className="text-4xl font-black font-mono text-amber-400">
+              <span className="text-4xl font-bold font-mono text-[#a8c7fa]">
                 {duration.toFixed(1)}
               </span>
-              <span className="text-sm font-bold text-slate-400">sec</span>
+              <span className="text-sm font-medium text-[#8e9099]">sec</span>
             </div>
 
-            {/* Slider */}
+            {/* M3 Slider */}
             <div className="mt-4 px-2">
               <input
                 type="range"
@@ -73,19 +73,19 @@ export default function ModifyDurationModal({
                 step={0.1}
                 value={duration}
                 onChange={(e) => setDuration(parseFloat(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer h-2 bg-[#1e2333] rounded-lg appearance-none"
+                className="w-full accent-[#a8c7fa] cursor-pointer h-2 bg-[#33353a] rounded-lg appearance-none"
               />
-              <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
-                <span>{MIN_CLIP_DURATION}s (snappy)</span>
-                <span>{MAX_CLIP_DURATION}s (slow)</span>
+              <div className="flex justify-between text-[10px] text-[#8e9099] font-mono mt-1">
+                <span>{MIN_CLIP_DURATION}s</span>
+                <span>{MAX_CLIP_DURATION}s</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Presets */}
+          {/* Quick Presets - M3 Chips */}
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-2">
-              Quick Presets
+            <label className="text-xs font-medium text-[#c4c6d0] block mb-2">
+              Presets
             </label>
             <div className="grid grid-cols-4 gap-2">
               {presets.map((preset) => (
@@ -93,10 +93,10 @@ export default function ModifyDurationModal({
                   type="button"
                   key={preset}
                   onClick={() => setDuration(preset)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-mono font-semibold border transition ${
+                  className={`py-1.5 px-2 rounded-full text-xs font-mono font-medium border transition ${
                     Math.abs(duration - preset) < 0.05
-                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                      : 'bg-[#181d2c] border-[#252c40] text-slate-300 hover:bg-[#202639]'
+                      ? 'bg-[#a8c7fa] border-[#a8c7fa] text-[#062e6f]'
+                      : 'bg-[#1d2024] border-[#44474f] text-[#c4c6d0] hover:bg-[#33353a]'
                   }`}
                 >
                   {preset.toFixed(1)}s
@@ -106,20 +106,20 @@ export default function ModifyDurationModal({
           </div>
 
           {/* Footer Buttons */}
-          <div className="pt-2 flex items-center justify-end space-x-2 border-t border-[#23293c]">
+          <div className="pt-2 flex items-center justify-end space-x-2 border-t border-[#44474f]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-[#1f2537] transition"
+              className="px-5 py-2 rounded-full text-xs font-medium text-[#a8c7fa] hover:bg-[#33353a] transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-sm shadow-amber-500/30 flex items-center space-x-1.5"
+              className="px-6 py-2 rounded-full text-xs font-medium bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] transition flex items-center space-x-1.5"
             >
               <Check className="w-4 h-4 stroke-[3]" />
-              <span>Apply Duration</span>
+              <span>Apply</span>
             </button>
           </div>
         </form>

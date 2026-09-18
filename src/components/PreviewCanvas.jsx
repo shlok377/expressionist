@@ -42,14 +42,11 @@ export default function PreviewCanvas({
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear background
-    ctx.fillStyle = '#0b0d14';
+    // Clear background to M3 surface-container-lowest
+    ctx.fillStyle = '#0c0e13';
     ctx.fillRect(0, 0, width, height);
 
     if (!activeClip) {
-      // Empty state
-      ctx.fillStyle = '#1c2233';
-      ctx.fillRect(0, 0, width, height);
       return;
     }
 
@@ -63,7 +60,7 @@ export default function PreviewCanvas({
     }
 
     const draw = () => {
-      ctx.fillStyle = '#0b0d14';
+      ctx.fillStyle = '#0c0e13';
       ctx.fillRect(0, 0, width, height);
 
       // Fit image inside canvas maintaining 3:4 aspect ratio
@@ -109,7 +106,6 @@ export default function PreviewCanvas({
       const nextPlayhead = playhead + deltaSeconds;
 
       if (nextPlayhead >= totalDuration) {
-        // Stop and reset to 0:00 per spec
         onPlayheadChange(0);
         onTogglePlay(false);
       } else {
@@ -129,8 +125,8 @@ export default function PreviewCanvas({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 relative">
-      {/* Aspect ratio container (3:4 portrait) */}
-      <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border border-[#232a3c] bg-[#0c0e16] flex items-center justify-center group">
+      {/* Aspect ratio container (3:4 portrait) in M3 Card styling */}
+      <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-[24px] overflow-hidden border border-[#44474f] bg-[#0c0e13] flex items-center justify-center group">
         <canvas
           ref={canvasRef}
           width={1080}
@@ -140,41 +136,41 @@ export default function PreviewCanvas({
 
         {/* Empty Canvas Overlay */}
         {clips.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-6 text-center bg-[#0d101a]/90">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-3">
-              <ImageIcon className="w-8 h-8 text-indigo-400 opacity-60" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#c4c6d0] p-6 text-center bg-[#191c20]">
+            <div className="w-14 h-14 rounded-2xl bg-[#282a2f] text-[#a8c7fa] flex items-center justify-center mb-3">
+              <ImageIcon className="w-7 h-7" />
             </div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-1">No Expressions in Timeline</h3>
-            <p className="text-xs text-slate-500 max-w-[200px]">
-              Click <strong className="text-indigo-400">Pick Expression</strong> above to start creating your clip!
+            <h3 className="text-sm font-medium text-[#e2e2e9] mb-1">No Expressions in Timeline</h3>
+            <p className="text-xs text-[#8e9099] max-w-[220px]">
+              Click <strong className="text-[#a8c7fa]">Pick Expression</strong> above to start creating your clip!
             </p>
           </div>
         )}
 
-        {/* Active Expression Name Badge */}
+        {/* Active Expression Name Chip */}
         {activeClipName && (
-          <div className="absolute top-3 left-3 px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-xs font-semibold text-white shadow-lg pointer-events-none flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+          <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] text-xs font-medium text-[#e2e2e9] pointer-events-none flex items-center space-x-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#a8c7fa]"></span>
             <span className="truncate max-w-[180px]">{activeClipName.replace(/\.[^/.]+$/, '')}</span>
           </div>
         )}
 
-        {/* Floating Quick Play/Pause Control on Hover */}
+        {/* Quick Play/Pause Control on Hover - M3 FAB Style */}
         {clips.length > 0 && (
           <button
             onClick={() => onTogglePlay()}
-            className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition duration-150 backdrop-blur-[2px]"
+            className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition duration-150"
           >
-            <div className="w-14 h-14 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-xl transform group-hover:scale-105 transition">
-              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-white ml-0.5" />}
+            <div className="w-14 h-14 rounded-2xl bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] flex items-center justify-center transition">
+              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current ml-0.5" />}
             </div>
           </button>
         )}
 
-        {/* Timestamp HUD */}
-        <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 font-mono text-xs text-slate-200 pointer-events-none">
-          <span className="text-indigo-400 font-bold">{playhead.toFixed(2)}s</span>
-          <span className="text-slate-500 mx-1">/</span>
+        {/* Timestamp Chip */}
+        <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] font-mono text-xs text-[#c4c6d0] pointer-events-none">
+          <span className="text-[#a8c7fa] font-medium">{playhead.toFixed(2)}s</span>
+          <span className="text-[#8e9099] mx-1">/</span>
           <span>{totalDuration.toFixed(2)}s</span>
         </div>
       </div>

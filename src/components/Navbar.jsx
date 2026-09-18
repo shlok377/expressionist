@@ -10,7 +10,6 @@ import {
   Undo2,
   Redo2,
   Film,
-  Sparkles,
 } from 'lucide-react';
 
 export default function Navbar({
@@ -32,48 +31,45 @@ export default function Navbar({
   onRedo,
 }) {
   return (
-    <header className="h-16 bg-[#131620] border-b border-[#23283a] px-4 flex items-center justify-between z-20 select-none">
-      {/* Left: Branding & Library Status */}
+    <header className="h-16 bg-[#1d2024] border-b border-[#44474f] px-4 flex items-center justify-between z-20 select-none">
+      {/* Left: Branding & Status Chip */}
       <div className="flex items-center space-x-3">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-          <Film className="w-5 h-5 text-white" />
+        <div className="w-10 h-10 rounded-xl bg-[#0842a0] text-[#d3e3fd] flex items-center justify-center">
+          <Film className="w-5 h-5" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            <span className="font-bold text-base tracking-tight text-white">Expressionist</span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              Mascot Studio
-            </span>
+            <span className="font-medium text-base tracking-tight text-[#e2e2e9]">Expressionist</span>
           </div>
-          <div className="flex items-center space-x-1.5 text-xs text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>{expressionsCount} expressions loaded</span>
+          <div className="flex items-center space-x-1.5 text-xs text-[#c4c6d0]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#a8c7fa]"></span>
+            <span>{expressionsCount} expressions available</span>
           </div>
         </div>
       </div>
 
-      {/* Center: Main Quick Access Actions */}
-      <div className="flex items-center space-x-2 bg-[#191d2b] p-1 rounded-xl border border-[#272d42]">
-        {/* 1. Pick Expression */}
+      {/* Center: Material 3 Action Buttons */}
+      <div className="flex items-center space-x-2 bg-[#282a2f] p-1.5 rounded-full">
+        {/* 1. Pick Expression - M3 Filled Button */}
         <button
           id="btn-pick-expression"
           onClick={onPickExpression}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-sm shadow-indigo-600/30"
+          className="flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-medium bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] transition"
           title="Pick Expression to add to timeline"
         >
           <Plus className="w-4 h-4" />
           <span>Pick Expression</span>
         </button>
 
-        {/* 2. Delete */}
+        {/* 2. Delete - M3 Tonal Error Button */}
         <button
           id="btn-delete-clip"
           onClick={onDeleteSelected}
           disabled={!selectedClip}
-          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+          className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition ${
             selectedClip
-              ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30'
-              : 'text-slate-500 cursor-not-allowed opacity-40'
+              ? 'bg-[#8c1d18] text-[#f9dedc] hover:bg-[#a0221c]'
+              : 'text-[#8e9099] opacity-30 cursor-not-allowed'
           }`}
           title={selectedClip ? `Delete selected clip (${selectedClip.expression.name})` : 'Select a clip to delete'}
         >
@@ -81,26 +77,26 @@ export default function Navbar({
           <span>Delete</span>
         </button>
 
-        {/* 3. Play / Pause */}
+        {/* 3. Play / Pause - M3 Tonal Secondary Button */}
         <button
           id="btn-play-pause"
           onClick={onTogglePlay}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm shadow-emerald-600/30"
+          className="flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-medium bg-[#3f4759] text-[#dbe2f9] hover:bg-[#4b5469] transition"
           title="Play/Pause timeline preview (Space)"
         >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
           <span>{isPlaying ? 'Pause' : 'Play'}</span>
         </button>
 
-        {/* 4. Modify Duration */}
+        {/* 4. Modify Duration - M3 Outlined Button */}
         <button
           id="btn-modify-duration"
           onClick={onModifyDuration}
           disabled={!selectedClip}
-          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+          className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition ${
             selectedClip
-              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30'
-              : 'text-slate-500 cursor-not-allowed opacity-40'
+              ? 'border border-[#8e9099] text-[#e2e2e9] hover:bg-[#33353a]'
+              : 'border border-[#44474f] text-[#8e9099] opacity-30 cursor-not-allowed'
           }`}
           title={selectedClip ? `Modify duration for ${selectedClip.expression.name}` : 'Select a clip to modify duration'}
         >
@@ -109,15 +105,17 @@ export default function Navbar({
         </button>
       </div>
 
-      {/* Right: Export & History */}
+      {/* Right: History & Export */}
       <div className="flex items-center space-x-3">
-        {/* Undo / Redo */}
-        <div className="flex items-center space-x-1 bg-[#181b26] p-1 rounded-lg border border-[#262c3e]">
+        {/* Undo / Redo - M3 Standard Icon Buttons */}
+        <div className="flex items-center space-x-1">
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            className={`p-1.5 rounded hover:bg-[#252b3e] transition ${
-              canUndo ? 'text-slate-300 hover:text-white' : 'text-slate-600 cursor-not-allowed'
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+              canUndo
+                ? 'text-[#c4c6d0] hover:text-[#e2e2e9] hover:bg-[#33353a]'
+                : 'text-[#44474f] cursor-not-allowed'
             }`}
             title="Undo (Ctrl+Z)"
           >
@@ -126,8 +124,10 @@ export default function Navbar({
           <button
             onClick={onRedo}
             disabled={!canRedo}
-            className={`p-1.5 rounded hover:bg-[#252b3e] transition ${
-              canRedo ? 'text-slate-300 hover:text-white' : 'text-slate-600 cursor-not-allowed'
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+              canRedo
+                ? 'text-[#c4c6d0] hover:text-[#e2e2e9] hover:bg-[#33353a]'
+                : 'text-[#44474f] cursor-not-allowed'
             }`}
             title="Redo (Ctrl+Y)"
           >
@@ -135,18 +135,18 @@ export default function Navbar({
           </button>
         </div>
 
-        {/* Total Duration Badge */}
-        <div className="px-2.5 py-1 rounded-lg bg-[#181b26] border border-[#262c3e] text-xs font-mono text-slate-300">
-          <span className="text-slate-500 text-[10px] uppercase tracking-wider mr-1.5">Total</span>
-          <span className="font-semibold text-indigo-400">{totalDuration.toFixed(1)}s</span>
+        {/* Total Duration Chip */}
+        <div className="px-3 py-1.5 rounded-full bg-[#282a2f] border border-[#44474f] text-xs font-mono text-[#c4c6d0]">
+          <span className="text-[#8e9099] mr-1.5">Total</span>
+          <span className="font-semibold text-[#a8c7fa]">{totalDuration.toFixed(1)}s</span>
         </div>
 
-        {/* Reset Project Button - Appears once user exports */}
+        {/* Reset Project Button - M3 Tonal Button (appears after export) */}
         {hasExported && (
           <button
             id="btn-reset-project"
             onClick={onResetProject}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-lg shadow-amber-500/20 animate-bounce"
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs font-medium bg-[#583e5b] text-[#fbd7fc] hover:bg-[#684a6b] transition"
             title="Clear sequence and start fresh"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -154,20 +154,20 @@ export default function Navbar({
           </button>
         )}
 
-        {/* Export Video Button */}
+        {/* Export Video Button - M3 Filled Primary Button */}
         <button
           id="btn-export-video"
           onClick={onExport}
           disabled={isExporting || totalDuration === 0}
-          className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-lg ${
+          className={`flex items-center space-x-2 px-5 py-2 rounded-full text-xs font-medium transition ${
             isExporting || totalDuration === 0
-              ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-              : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-indigo-600/30'
+              ? 'bg-[#282a2f] text-[#8e9099] cursor-not-allowed border border-[#44474f]'
+              : 'bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa]'
           }`}
           title="Render and download MP4 video"
         >
           <Download className={`w-4 h-4 ${isExporting ? 'animate-spin' : ''}`} />
-          <span>{isExporting ? 'Exporting MP4...' : 'Export Video'}</span>
+          <span>{isExporting ? 'Exporting...' : 'Export Video'}</span>
         </button>
       </div>
     </header>

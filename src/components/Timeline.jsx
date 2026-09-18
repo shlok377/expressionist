@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { clampDuration, MIN_CLIP_DURATION, MAX_CLIP_DURATION } from '../utils/timeline.js';
+import { clampDuration } from '../utils/timeline.js';
 import { GripVertical } from 'lucide-react';
 
 const PIXELS_PER_SECOND = 180; // 1 second = 180px
@@ -144,16 +144,16 @@ export default function Timeline({
   }
 
   return (
-    <div className="h-56 bg-[#11141e] border-t border-[#23293c] flex flex-col select-none relative z-10">
-      {/* Timeline Controls / Header */}
-      <div className="h-8 px-4 bg-[#141824] border-b border-[#202536] flex items-center justify-between text-xs text-slate-400">
+    <div className="h-56 bg-[#191c20] border-t border-[#44474f] flex flex-col select-none relative z-10">
+      {/* Timeline Header */}
+      <div className="h-8 px-4 bg-[#1d2024] border-b border-[#44474f] flex items-center justify-between text-xs text-[#c4c6d0]">
         <div className="flex items-center space-x-3">
-          <span className="font-semibold text-slate-300">Timeline Sequence</span>
-          <span className="text-[11px] text-slate-500">
+          <span className="font-medium text-[#e2e2e9]">Timeline Sequence</span>
+          <span className="text-[11px] text-[#8e9099]">
             {clips.length} {clips.length === 1 ? 'clip' : 'clips'}
           </span>
         </div>
-        <div className="text-[11px] text-slate-500">
+        <div className="text-[11px] text-[#8e9099]">
           Right-click a clip for actions • Drag edges to resize • Drag body to reorder
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function Timeline({
       <div
         ref={rulerRef}
         onMouseDown={handleRulerMouseDown}
-        className="h-7 border-b border-[#202536] bg-[#121520] relative overflow-x-hidden cursor-pointer"
+        className="h-7 border-b border-[#44474f] bg-[#14161b] relative overflow-x-hidden cursor-pointer"
       >
         <div style={{ width: `${totalRulerWidth}px` }} className="h-full relative pointer-events-none">
           {majorTicks.map((time) => {
@@ -176,11 +176,11 @@ export default function Timeline({
               >
                 <div
                   className={`w-px ${
-                    isSecond ? 'h-3.5 bg-slate-500' : 'h-2 bg-slate-700'
+                    isSecond ? 'h-3.5 bg-[#8e9099]' : 'h-2 bg-[#44474f]'
                   }`}
                 />
                 {isSecond && (
-                  <span className="text-[9px] font-mono text-slate-400 -translate-x-1/2 select-none mb-0.5">
+                  <span className="text-[9px] font-mono text-[#8e9099] -translate-x-1/2 select-none mb-0.5">
                     {time}s
                   </span>
                 )}
@@ -189,13 +189,13 @@ export default function Timeline({
           })}
         </div>
 
-        {/* Playhead Scrubber Head on Ruler */}
+        {/* Playhead Scrubber Head on Ruler (Material 3 Teardrop/Pill) */}
         <div
           style={{ transform: `translateX(${playheadX}px)` }}
           className="absolute top-0 bottom-0 z-30 pointer-events-none"
         >
-          <div className="w-3.5 h-3.5 bg-indigo-500 rounded-sm -translate-x-1/2 flex items-center justify-center shadow-md shadow-indigo-500/50">
-            <div className="w-1 h-1.5 bg-white rounded-full"></div>
+          <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md -translate-x-1/2 flex items-center justify-center">
+            <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
           </div>
         </div>
       </div>
@@ -203,25 +203,25 @@ export default function Timeline({
       {/* Clips Area */}
       <div
         ref={trackRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative bg-[#0d0f17]"
+        className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative bg-[#111318]"
       >
         <div
           style={{ width: `${Math.max(totalRulerWidth, 1200)}px` }}
           className="h-full relative flex items-center"
         >
-          {/* Playhead Vertical Line extending across clips */}
+          {/* Playhead Vertical Line */}
           <div
             style={{ transform: `translateX(${playheadX}px)` }}
-            className="absolute top-0 bottom-0 w-0.5 bg-indigo-500 z-30 pointer-events-none shadow-[0_0_8px_rgba(99,102,241,0.8)]"
+            className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none"
           />
 
           {/* Clips List */}
           {clips.length === 0 ? (
-            <div className="h-28 w-full border-2 border-dashed border-[#23293c] rounded-xl flex items-center justify-center text-slate-500 text-xs">
+            <div className="h-28 w-full border border-dashed border-[#44474f] rounded-2xl flex items-center justify-center text-[#8e9099] text-xs">
               Timeline is empty. Click "Pick Expression" to add mascot clips.
             </div>
           ) : (
-            <div className="flex items-center h-28 space-x-1.5">
+            <div className="flex items-center h-28 space-x-2">
               {clips.map((clip, index) => {
                 const isSelected = selectedClipId === clip.id;
                 const isDragOver = dragOverIndex === index;
@@ -246,48 +246,50 @@ export default function Timeline({
                       onContextMenu(e.clientX, e.clientY, clip);
                     }}
                     style={{ width: `${widthPx}px` }}
-                    className={`group relative h-full rounded-xl border flex flex-col justify-between p-2 cursor-pointer transition-all duration-150 ${
+                    className={`group relative h-full rounded-2xl border flex flex-col justify-between p-2.5 cursor-pointer transition-all duration-150 ${
                       isSelected
-                        ? 'bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/50 shadow-lg shadow-indigo-950/50'
-                        : 'bg-[#181d2c] border-[#252c40] hover:bg-[#1f2537] hover:border-[#353d58]'
-                    } ${isDragOver ? 'border-l-4 border-l-cyan-400 pl-3' : ''}`}
+                        ? 'bg-[#33353a] border-2 border-[#a8c7fa]'
+                        : isDragOver
+                        ? 'bg-[#3f4759] border-[#8e9099]'
+                        : 'bg-[#282a2f] border-[#44474f] hover:bg-[#33353a]'
+                    }`}
                   >
                     {/* Left Resize Handle */}
                     <div
                       onMouseDown={(e) => startResize(e, clip, 'left')}
-                      className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-indigo-400/40 rounded-l-xl z-20 transition"
+                      className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-[#a8c7fa]/30 rounded-l-2xl z-20 transition"
                       title="Drag to resize left edge"
                     />
 
-                    {/* Clip Header: Drag grip & name */}
-                    <div className="flex items-center justify-between text-xs text-slate-300 pointer-events-none">
+                    {/* Clip Header */}
+                    <div className="flex items-center justify-between text-xs text-[#e2e2e9] pointer-events-none">
                       <div className="flex items-center space-x-1 truncate pr-1">
-                        <GripVertical className="w-3 h-3 text-slate-500 shrink-0 opacity-40 group-hover:opacity-100" />
-                        <span className="font-semibold text-[11px] truncate" title={clip.expression.name}>
+                        <GripVertical className="w-3.5 h-3.5 text-[#8e9099] shrink-0" />
+                        <span className="font-medium text-[11px] truncate" title={clip.expression.name}>
                           {clip.expression.name.replace(/\.[^/.]+$/, '')}
                         </span>
                       </div>
                     </div>
 
-                    {/* Clip Body: Mascot Thumbnail Preview */}
+                    {/* Clip Body: Thumbnail */}
                     <div className="flex-1 flex items-center justify-center my-1 overflow-hidden pointer-events-none">
                       <img
                         src={clip.expression.url}
                         alt={clip.expression.name}
-                        className="h-12 w-auto object-contain rounded drop-shadow"
+                        className="h-12 w-auto object-contain rounded"
                       />
                     </div>
 
-                    {/* Clip Footer: Duration Pill */}
+                    {/* Clip Footer */}
                     <div className="flex items-center justify-between pointer-events-none">
-                      <span className="text-[9px] text-slate-500 font-mono">
+                      <span className="text-[10px] text-[#8e9099] font-mono">
                         #{index + 1}
                       </span>
                       <span
-                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                        className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full ${
                           isSelected
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-[#121520] text-indigo-300 border border-[#23293c]'
+                            ? 'bg-[#a8c7fa] text-[#062e6f]'
+                            : 'bg-[#1d2024] text-[#c4c6d0] border border-[#44474f]'
                         }`}
                       >
                         {clip.duration.toFixed(1)}s
@@ -297,7 +299,7 @@ export default function Timeline({
                     {/* Right Resize Handle */}
                     <div
                       onMouseDown={(e) => startResize(e, clip, 'right')}
-                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-indigo-400/40 rounded-r-xl z-20 transition"
+                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-[#a8c7fa]/30 rounded-r-2xl z-20 transition"
                       title="Drag to resize right edge"
                     />
                   </div>

@@ -53,12 +53,12 @@ export default function ContextMenu({
     <div
       ref={menuRef}
       style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-      className="fixed z-50 w-56 bg-[#161925] border border-[#2c3349] rounded-xl shadow-2xl shadow-black/80 py-1.5 text-xs text-slate-200 divide-y divide-[#23283a] select-none animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 w-56 bg-[#282a2f] border border-[#44474f] rounded-2xl shadow-xl py-2 text-xs text-[#e2e2e9] divide-y divide-[#44474f] select-none"
     >
       {/* Clip Info Header */}
-      <div className="px-3 py-1.5 text-[11px] font-medium text-slate-400 truncate flex items-center justify-between">
+      <div className="px-3.5 py-1.5 text-[11px] font-medium text-[#c4c6d0] truncate flex items-center justify-between">
         <span className="truncate">{clip.expression.name}</span>
-        <span className="font-mono text-indigo-400 font-bold ml-2">
+        <span className="font-mono text-[#a8c7fa] font-medium ml-2">
           {clip.duration.toFixed(1)}s
         </span>
       </div>
@@ -71,13 +71,13 @@ export default function ContextMenu({
             onClose();
           }}
           disabled={clip.duration >= 2.0}
-          className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-indigo-600/20 hover:text-indigo-300 disabled:opacity-40 disabled:hover:bg-transparent transition text-left"
+          className="w-full px-3.5 py-2 flex items-center justify-between hover:bg-[#33353a] disabled:opacity-30 disabled:hover:bg-transparent transition text-left"
         >
-          <span className="flex items-center space-x-2">
-            <Plus className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="flex items-center space-x-2.5">
+            <Plus className="w-4 h-4 text-[#a8c7fa]" />
             <span>Increase (+0.1s)</span>
           </span>
-          <span className="text-[10px] text-slate-500 font-mono">max 2.0s</span>
+          <span className="text-[10px] text-[#8e9099] font-mono">max 2.0s</span>
         </button>
 
         <button
@@ -86,13 +86,13 @@ export default function ContextMenu({
             onClose();
           }}
           disabled={clip.duration <= 0.2}
-          className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-indigo-600/20 hover:text-indigo-300 disabled:opacity-40 disabled:hover:bg-transparent transition text-left"
+          className="w-full px-3.5 py-2 flex items-center justify-between hover:bg-[#33353a] disabled:opacity-30 disabled:hover:bg-transparent transition text-left"
         >
-          <span className="flex items-center space-x-2">
-            <Minus className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="flex items-center space-x-2.5">
+            <Minus className="w-4 h-4 text-[#a8c7fa]" />
             <span>Decrease (-0.1s)</span>
           </span>
-          <span className="text-[10px] text-slate-500 font-mono">min 0.2s</span>
+          <span className="text-[10px] text-[#8e9099] font-mono">min 0.2s</span>
         </button>
 
         <button
@@ -100,9 +100,9 @@ export default function ContextMenu({
             onCustomDuration(clip);
             onClose();
           }}
-          className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-indigo-600/20 hover:text-indigo-300 transition text-left"
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 hover:bg-[#33353a] transition text-left"
         >
-          <Clock className="w-3.5 h-3.5 text-amber-400" />
+          <Clock className="w-4 h-4 text-[#c4c6d0]" />
           <span>Set Custom Duration...</span>
         </button>
       </div>
@@ -114,9 +114,9 @@ export default function ContextMenu({
             onReplaceExpression(clip);
             onClose();
           }}
-          className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-indigo-600/20 hover:text-indigo-300 transition text-left"
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 hover:bg-[#33353a] transition text-left"
         >
-          <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+          <RefreshCw className="w-4 h-4 text-[#c4c6d0]" />
           <span>Replace Expression...</span>
         </button>
 
@@ -125,9 +125,9 @@ export default function ContextMenu({
             onDuplicateClip(clip.id);
             onClose();
           }}
-          className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-indigo-600/20 hover:text-indigo-300 transition text-left"
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 hover:bg-[#33353a] transition text-left"
         >
-          <Copy className="w-3.5 h-3.5 text-emerald-400" />
+          <Copy className="w-4 h-4 text-[#c4c6d0]" />
           <span>Duplicate Clip</span>
         </button>
       </div>
@@ -139,9 +139,9 @@ export default function ContextMenu({
             onDeleteClip(clip.id);
             onClose();
           }}
-          className="w-full px-3 py-1.5 flex items-center space-x-2 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition text-left"
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 text-[#f2b8b5] hover:bg-[#8c1d18]/40 transition text-left"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Trash2 className="w-4 h-4" />
           <span>Delete Clip</span>
         </button>
       </div>

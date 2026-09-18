@@ -137,7 +137,6 @@ export default function App() {
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger shortcuts if inside input elements
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
       if (e.code === 'Space') {
@@ -267,8 +266,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0f1117] text-slate-100 overflow-hidden font-sans">
-      {/* Top Navigation */}
+    <div className="h-screen w-screen flex flex-col bg-[#111318] text-[#e2e2e9] overflow-hidden font-sans">
+      {/* Top Navigation - M3 Top App Bar */}
       <Navbar
         expressionsCount={expressions.length}
         selectedClip={selectedClip}
@@ -291,7 +290,7 @@ export default function App() {
       />
 
       {/* Main Preview Area */}
-      <main className="flex-1 flex flex-col min-h-0 bg-[#0c0e16] relative">
+      <main className="flex-1 flex flex-col min-h-0 bg-[#111318] relative">
         <PreviewCanvas
           clips={clips}
           playhead={playhead}
@@ -315,7 +314,7 @@ export default function App() {
         onContextMenu={(x, y, clip) => setContextMenu({ x, y, clip })}
       />
 
-      {/* Pick / Replace Expression Modal */}
+      {/* Pick / Replace Expression Modal - M3 Dialog */}
       <PickExpressionModal
         isOpen={pickModalState.isOpen}
         mode={pickModalState.mode}
@@ -325,7 +324,7 @@ export default function App() {
         onClose={() => setPickModalState({ isOpen: false, mode: 'insert', targetClip: null })}
       />
 
-      {/* Modify Duration Modal */}
+      {/* Modify Duration Modal - M3 Dialog */}
       <ModifyDurationModal
         isOpen={isModifyDurationOpen}
         clip={selectedClip}
@@ -333,7 +332,7 @@ export default function App() {
         onClose={() => setIsModifyDurationOpen(false)}
       />
 
-      {/* Right Click Context Menu */}
+      {/* Right Click Context Menu - M3 Menu */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -363,29 +362,29 @@ export default function App() {
         />
       )}
 
-      {/* Toast Notification */}
+      {/* Toast Notification - M3 Snackbar */}
       {toast && (
-        <div className="fixed bottom-60 right-6 z-50 flex items-center space-x-3 bg-[#191e2e] border border-[#2f3854] text-white px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-60 right-6 z-50 flex items-center space-x-3 bg-[#33353a] border border-[#44474f] text-[#e2e2e9] px-5 py-3 rounded-full shadow-lg">
           {toast.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-[#a8c7fa] shrink-0" />
           ) : (
-            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-[#f2b8b5] shrink-0" />
           )}
           <div className="text-xs">
-            <p className="font-semibold">{toast.message}</p>
+            <span className="font-medium">{toast.message}</span>
             {toast.downloadUrl && (
               <a
                 href={toast.downloadUrl}
                 download
-                className="text-indigo-400 underline hover:text-indigo-300 font-medium block mt-0.5"
+                className="text-[#a8c7fa] underline hover:text-[#d3e3fd] font-medium ml-2"
               >
-                Click here if download didn't start automatically
+                Download again
               </a>
             )}
           </div>
           <button
             onClick={() => setToast(null)}
-            className="p-1 text-slate-400 hover:text-white rounded"
+            className="p-1 text-[#c4c6d0] hover:text-[#e2e2e9] rounded-full"
           >
             <X className="w-4 h-4" />
           </button>
