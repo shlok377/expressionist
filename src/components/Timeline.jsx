@@ -34,14 +34,15 @@ export default function Timeline({
     startDuration: 0,
   });
 
-  // Direct DOM update for playhead at 60 FPS (zero React re-renders)
+  // Direct GPU Compositor DOM update for playhead at 60 FPS (zero React re-renders)
   const updatePlayheadDOM = useCallback((time) => {
     const x = time * PIXELS_PER_SECOND;
+    const transformValue = `translate3d(${x}px, 0, 0)`;
     if (playheadLineRef.current) {
-      playheadLineRef.current.style.transform = `translateX(${x}px)`;
+      playheadLineRef.current.style.transform = transformValue;
     }
     if (playheadScrubberRef.current) {
-      playheadScrubberRef.current.style.transform = `translateX(${x}px)`;
+      playheadScrubberRef.current.style.transform = transformValue;
     }
   }, []);
 
@@ -222,10 +223,10 @@ export default function Timeline({
           })}
         </div>
 
-        {/* Playhead Scrubber Head on Ruler with direct ref */}
+        {/* Playhead Scrubber Head on Ruler (GPU Accelerated with translate3d) */}
         <div
           ref={playheadScrubberRef}
-          style={{ transform: `translateX(${playhead * PIXELS_PER_SECOND}px)` }}
+          style={{ transform: `translate3d(${playhead * PIXELS_PER_SECOND}px, 0, 0)` }}
           className="absolute top-0 bottom-0 z-30 pointer-events-none will-change-transform"
         >
           <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md -translate-x-1/2 flex items-center justify-center">
@@ -243,10 +244,10 @@ export default function Timeline({
           style={{ width: `${Math.max(totalRulerWidth, 1200)}px` }}
           className="h-full relative flex items-center"
         >
-          {/* Playhead Vertical Line with direct ref */}
+          {/* Playhead Vertical Line (GPU Accelerated with translate3d) */}
           <div
             ref={playheadLineRef}
-            style={{ transform: `translateX(${playhead * PIXELS_PER_SECOND}px)` }}
+            style={{ transform: `translate3d(${playhead * PIXELS_PER_SECOND}px, 0, 0)` }}
             className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none will-change-transform"
           />
 

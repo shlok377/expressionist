@@ -2,6 +2,9 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { findClipAtTime } from '../utils/timeline.js';
 import { Image as ImageIcon, Play, Pause } from 'lucide-react';
 
+const CANVAS_WIDTH = 720;
+const CANVAS_HEIGHT = 960;
+
 export default function PreviewCanvas({
   clips = [],
   playhead = 0,
@@ -12,15 +15,15 @@ export default function PreviewCanvas({
   onTogglePlay,
 }) {
   const canvasRef = useRef(null);
-  const imageCacheRef = useRef(new Map());
+  const bitmapCacheRef = useRef(new Map());
+  const imageFallbackCacheRef = useRef(new Map());
   const currentClipIdRef = useRef(null);
   const playheadRef = useRef(playhead);
   const isPlayingRef = useRef(isPlaying);
-  const lastReactSyncRef = useRef(0);
+  const timeDisplayRef = useRef(null);
   const [activeClipName, setActiveClipName] = useState(null);
-  const [displayTime, setDisplayTime] = useState(playhead);
 
-  // Keep isPlayingRef and playheadRef in sync
+  // Keep isPlayingRef updated
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -28,41 +31,85 @@ export default function PreviewCanvas({
   // Sync from external playhead changes (scrubbing, seeking)
   useEffect(() => {
     playheadRef.current = playhead;
-    setDisplayTime(playhead);
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = `${playhead.toFixed(2)}s`;
+    }
     if (playheadController) {
       playheadController.setTime(playhead);
     }
   }, [playhead, playheadController]);
 
-  // Pre-cache & async decode images in clips
+  /**
+   * Pre-scales and decodes an image off the main thread using createImageBitmap.
+   * Caches the resulting GPU-ready ImageBitmap for instant 1:1 drawing.
+   */
+  const loadPreScaledBitmap = useCallback(async (url) => {
+    if (!url || bitmapCacheRef.current.has(url)) {
+      return bitmapCacheRef.current.get(url);
+    }
+
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+
+      let bitmap;
+      if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
+        try {
+          // Off-thread decoding AND high-quality downsampling to 720x960
+          bitmap = await window.createImageBitmap(blob, {
+            resizeWidth: CANVAS_WIDTH,
+            resizeHeight: CANVAS_HEIGHT,
+            resizeQuality: 'high',
+          });
+        } catch {
+          // Fallback to standard off-thread decoding without resize options
+          bitmap = await window.createImageBitmap(blob);
+        }
+      } else {
+        // Fallback for environments without createImageBitmap
+        const img = new Image();
+        img.src = url;
+        if ('decode' in img) await img.decode();
+        bitmap = img;
+      }
+
+      bitmapCacheRef.current.set(url, bitmap);
+      return bitmap;
+    } catch (err) {
+      console.warn('Bitmap decoding failed for', url, err);
+      // Fallback to Image element
+      if (!imageFallbackCacheRef.current.has(url)) {
+        const img = new Image();
+        img.src = url;
+        imageFallbackCacheRef.current.set(url, img);
+      }
+      return null;
+    }
+  }, []);
+
+  // Pre-load and pre-decode all clip bitmaps when clips change
   useEffect(() => {
     clips.forEach((clip) => {
       const url = clip.expression?.url;
-      if (url && !imageCacheRef.current.has(url)) {
-        const img = new Image();
-        img.src = url;
-        // Asynchronous decode to prevent main-thread jank
-        if ('decode' in img) {
-          img.decode().catch(() => {});
-        }
-        imageCacheRef.current.set(url, img);
+      if (url) {
+        loadPreScaledBitmap(url);
       }
     });
-  }, [clips]);
+  }, [clips, loadPreScaledBitmap]);
 
-  // Function to draw clip to canvas ONLY when needed (dirty check)
+  /**
+   * Draws the active clip with dirty checking and GPU-accelerated blitting.
+   */
   const drawClip = useCallback((clip, force = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: false });
-    const width = canvas.width;
-    const height = canvas.height;
 
     // If no clip, clear once
     if (!clip) {
       if (currentClipIdRef.current !== null || force) {
         ctx.fillStyle = '#0c0e13';
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         currentClipIdRef.current = null;
         setActiveClipName(null);
       }
@@ -78,45 +125,57 @@ export default function PreviewCanvas({
     setActiveClipName(clip.expression?.name || null);
 
     const imgUrl = clip.expression?.url;
-    let img = imageCacheRef.current.get(imgUrl);
+    const bitmap = bitmapCacheRef.current.get(imgUrl);
 
-    if (!img) {
-      img = new Image();
-      img.src = imgUrl;
-      imageCacheRef.current.set(imgUrl, img);
-    }
-
-    const render = () => {
-      ctx.fillStyle = '#0c0e13';
-      ctx.fillRect(0, 0, width, height);
-
-      const imgAspect = img.width / img.height || 3 / 4;
-      const canvasAspect = width / height;
-
-      let drawWidth = width;
-      let drawHeight = height;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (canvasAspect > imgAspect) {
-        drawWidth = height * imgAspect;
-        offsetX = (width - drawWidth) / 2;
-      } else {
-        drawHeight = width / imgAspect;
-        offsetY = (height - drawHeight) / 2;
+    if (bitmap) {
+      // 1:1 Instant GPU Texture Blit (0 downsampling CPU cost!)
+      ctx.drawImage(bitmap, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    } else {
+      // If bitmap is still decoding asynchronously in background, draw fallback image
+      let img = imageFallbackCacheRef.current.get(imgUrl);
+      if (!img) {
+        img = new Image();
+        img.src = imgUrl;
+        imageFallbackCacheRef.current.set(imgUrl, img);
       }
 
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'medium';
-      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-    };
+      const renderFallback = () => {
+        ctx.fillStyle = '#0c0e13';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    if (img.complete && img.naturalWidth > 0) {
-      render();
-    } else {
-      img.onload = render;
+        const imgAspect = img.width / img.height || 3 / 4;
+        const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+
+        let drawWidth = CANVAS_WIDTH;
+        let drawHeight = CANVAS_HEIGHT;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (canvasAspect > imgAspect) {
+          drawWidth = CANVAS_HEIGHT * imgAspect;
+          offsetX = (CANVAS_WIDTH - drawWidth) / 2;
+        } else {
+          drawHeight = CANVAS_WIDTH / imgAspect;
+          offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
+        }
+
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+      };
+
+      if (img.complete && img.naturalWidth > 0) {
+        renderFallback();
+      } else {
+        img.onload = renderFallback;
+      }
+
+      // Trigger background bitmap load for subsequent frames
+      loadPreScaledBitmap(imgUrl).then((loadedBitmap) => {
+        if (loadedBitmap && currentClipIdRef.current === clip.id) {
+          ctx.drawImage(loadedBitmap, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
+      });
     }
-  }, []);
+  }, [loadPreScaledBitmap]);
 
   // Handle manual scrub / clips change redraw
   useEffect(() => {
@@ -124,7 +183,7 @@ export default function PreviewCanvas({
     drawClip(match?.clip || null, true);
   }, [clips, drawClip]);
 
-  // Decoupled 60 FPS Animation Loop
+  // Decoupled 60 FPS Animation Loop (Zero React Re-renders During Playback)
   useEffect(() => {
     if (!isPlaying || totalDuration <= 0) return;
 
@@ -145,7 +204,9 @@ export default function PreviewCanvas({
         if (playheadController) {
           playheadController.setTime(0);
         }
-        setDisplayTime(0);
+        if (timeDisplayRef.current) {
+          timeDisplayRef.current.textContent = '0.00s';
+        }
         onPlayheadChange(0);
         onTogglePlay(false);
 
@@ -162,16 +223,15 @@ export default function PreviewCanvas({
         playheadController.setTime(nextPlayhead);
       }
 
-      // 2. Dirty-checked canvas draw: only draws if the active clip changed!
+      // 2. Direct DOM update for time HUD (zero React re-renders)
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = `${nextPlayhead.toFixed(2)}s`;
+      }
+
+      // 3. Dirty-checked canvas draw: only draws if the active clip changed!
       const activeMatch = findClipAtTime(clips, nextPlayhead);
       if (activeMatch?.clip?.id !== currentClipIdRef.current) {
         drawClip(activeMatch?.clip || null, false);
-      }
-
-      // 3. Throttled UI state sync (~10 FPS / every 100ms) for time display
-      if (currentTime - lastReactSyncRef.current >= 100) {
-        lastReactSyncRef.current = currentTime;
-        setDisplayTime(nextPlayhead);
       }
 
       animationFrameId = requestAnimationFrame(loop);
@@ -183,7 +243,7 @@ export default function PreviewCanvas({
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
-      // On pause / unmount, sync exact playhead back to React
+      // On pause / unmount, sync exact playhead back to React state
       onPlayheadChange(playheadRef.current);
     };
   }, [isPlaying, totalDuration, clips, playheadController, drawClip, onPlayheadChange, onTogglePlay]);
@@ -194,8 +254,8 @@ export default function PreviewCanvas({
       <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-[24px] overflow-hidden border border-[#44474f] bg-[#0c0e13] flex items-center justify-center group">
         <canvas
           ref={canvasRef}
-          width={720}
-          height={960}
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
           className="w-full h-full object-contain"
         />
 
@@ -232,9 +292,11 @@ export default function PreviewCanvas({
           </button>
         )}
 
-        {/* Timestamp Chip */}
-        <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] font-mono text-xs text-[#c4c6d0] pointer-events-none">
-          <span className="text-[#a8c7fa] font-medium">{displayTime.toFixed(2)}s</span>
+        {/* Timestamp Chip with direct DOM ref for 60 FPS update */}
+        <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] font-mono text-xs text-[#c4c6d0] pointer-events-none flex items-center">
+          <span ref={timeDisplayRef} className="text-[#a8c7fa] font-medium min-w-[36px]">
+            {playhead.toFixed(2)}s
+          </span>
           <span className="text-[#8e9099] mx-1">/</span>
           <span>{totalDuration.toFixed(2)}s</span>
         </div>
