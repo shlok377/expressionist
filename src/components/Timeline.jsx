@@ -9,6 +9,7 @@ export default function Timeline({
   playhead = 0,
   selectedClipId = null,
   totalDuration = 0,
+  playheadController,
   onPlayheadChange,
   onSelectClip,
   onReorderClips,
@@ -17,6 +18,9 @@ export default function Timeline({
 }) {
   const rulerRef = useRef(null);
   const trackRef = useRef(null);
+  const playheadLineRef = useRef(null);
+  const playheadScrubberRef = useRef(null);
+
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [draggedClipIndex, setDraggedClipIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -30,8 +34,31 @@ export default function Timeline({
     startDuration: 0,
   });
 
-  // Calculate pixel position of playhead
-  const playheadX = playhead * PIXELS_PER_SECOND;
+  // Direct DOM update for playhead at 60 FPS (zero React re-renders)
+  const updatePlayheadDOM = useCallback((time) => {
+    const x = time * PIXELS_PER_SECOND;
+    if (playheadLineRef.current) {
+      playheadLineRef.current.style.transform = `translateX(${x}px)`;
+    }
+    if (playheadScrubberRef.current) {
+      playheadScrubberRef.current.style.transform = `translateX(${x}px)`;
+    }
+  }, []);
+
+  // Subscribe to PlayheadController for 60 FPS decoupled updates
+  useEffect(() => {
+    if (!playheadController) return;
+    updatePlayheadDOM(playheadController.getTime());
+    const unsubscribe = playheadController.subscribe((time) => {
+      updatePlayheadDOM(time);
+    });
+    return unsubscribe;
+  }, [playheadController, updatePlayheadDOM]);
+
+  // Sync on manual playhead prop changes
+  useEffect(() => {
+    updatePlayheadDOM(playhead);
+  }, [playhead, updatePlayheadDOM]);
 
   // Handle Playhead Scrubbing
   const handleScrub = useCallback(
@@ -42,9 +69,15 @@ export default function Timeline({
       const scrollLeft = ruler.scrollLeft || 0;
       const x = clientX - rect.left + scrollLeft;
       const time = Math.max(0, Math.min(totalDuration, x / PIXELS_PER_SECOND));
-      onPlayheadChange(Math.round(time * 100) / 100);
+      const rounded = Math.round(time * 100) / 100;
+
+      updatePlayheadDOM(rounded);
+      if (playheadController) {
+        playheadController.setTime(rounded);
+      }
+      onPlayheadChange(rounded);
     },
-    [totalDuration, onPlayheadChange]
+    [totalDuration, playheadController, updatePlayheadDOM, onPlayheadChange]
   );
 
   const handleRulerMouseDown = (e) => {
@@ -189,10 +222,11 @@ export default function Timeline({
           })}
         </div>
 
-        {/* Playhead Scrubber Head on Ruler (Material 3 Teardrop/Pill) */}
+        {/* Playhead Scrubber Head on Ruler with direct ref */}
         <div
-          style={{ transform: `translateX(${playheadX}px)` }}
-          className="absolute top-0 bottom-0 z-30 pointer-events-none"
+          ref={playheadScrubberRef}
+          style={{ transform: `translateX(${playhead * PIXELS_PER_SECOND}px)` }}
+          className="absolute top-0 bottom-0 z-30 pointer-events-none will-change-transform"
         >
           <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md -translate-x-1/2 flex items-center justify-center">
             <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
@@ -209,10 +243,11 @@ export default function Timeline({
           style={{ width: `${Math.max(totalRulerWidth, 1200)}px` }}
           className="h-full relative flex items-center"
         >
-          {/* Playhead Vertical Line */}
+          {/* Playhead Vertical Line with direct ref */}
           <div
-            style={{ transform: `translateX(${playheadX}px)` }}
-            className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none"
+            ref={playheadLineRef}
+            style={{ transform: `translateX(${playhead * PIXELS_PER_SECOND}px)` }}
+            className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none will-change-transform"
           />
 
           {/* Clips List */}

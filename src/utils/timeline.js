@@ -145,3 +145,30 @@ export function replaceClipExpression(clips, clipId, newExpression) {
     return clip;
   });
 }
+
+/**
+ * Lightweight PlayheadController for high-performance decoupled 60 FPS playback.
+ * Avoids triggering full React tree re-renders on every animation frame.
+ */
+export class PlayheadController {
+  constructor(initialTime = 0) {
+    this.time = initialTime;
+    this.subscribers = new Set();
+  }
+
+  getTime() {
+    return this.time;
+  }
+
+  setTime(time) {
+    this.time = time;
+    for (const fn of this.subscribers) {
+      fn(time);
+    }
+  }
+
+  subscribe(fn) {
+    this.subscribers.add(fn);
+    return () => this.subscribers.delete(fn);
+  }
+}

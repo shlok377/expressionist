@@ -11,6 +11,7 @@ import {
   updateClipDuration,
   duplicateClip,
   deleteClip,
+  PlayheadController,
 } from '../src/utils/timeline.js';
 
 describe('Timeline Logic', () => {
@@ -68,7 +69,6 @@ describe('Timeline Logic', () => {
       { id: '2', expression: { name: 'second.png' }, duration: 0.6 },
     ];
 
-    // When playhead is at 0.3 (inside clip 1), new clip is inserted after clip 1 (index 1)
     const newExp = { name: 'inserted.png' };
     const result = insertClipAfterPlayhead(clips, newExp, 0.3);
 
@@ -141,5 +141,23 @@ describe('Timeline Logic', () => {
     ];
     const afterDelete = deleteClip(clips, '2');
     expect(afterDelete.map(c => c.id)).toEqual(['1', '3']);
+  });
+
+  it('manages playhead state and notifies subscribers outside React lifecycle', () => {
+    const controller = new PlayheadController(0.5);
+    expect(controller.getTime()).toBe(0.5);
+
+    let notifiedTime = null;
+    const unsubscribe = controller.subscribe((time) => {
+      notifiedTime = time;
+    });
+
+    controller.setTime(1.2);
+    expect(controller.getTime()).toBe(1.2);
+    expect(notifiedTime).toBe(1.2);
+
+    unsubscribe();
+    controller.setTime(1.8);
+    expect(notifiedTime).toBe(1.2);
   });
 });

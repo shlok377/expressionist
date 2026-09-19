@@ -14,6 +14,7 @@ import {
   deleteClip,
   replaceClipExpression,
   clampDuration,
+  PlayheadController,
 } from './utils/timeline.js';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
@@ -46,6 +47,9 @@ export default function App() {
   const [playhead, setPlayhead] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState(null);
+
+  // Decoupled Playhead Controller for 60 FPS playback without React diffing
+  const playheadController = useRef(new PlayheadController(0)).current;
 
   // Modals & Menus
   const [pickModalState, setPickModalState] = useState({
@@ -150,10 +154,18 @@ export default function App() {
         }
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        setPlayhead((prev) => Math.max(0, Math.round((prev - 0.1) * 10) / 10));
+        setPlayhead((prev) => {
+          const next = Math.max(0, Math.round((prev - 0.1) * 10) / 10);
+          playheadController.setTime(next);
+          return next;
+        });
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        setPlayhead((prev) => Math.min(totalDuration, Math.round((prev + 0.1) * 10) / 10));
+        setPlayhead((prev) => {
+          const next = Math.min(totalDuration, Math.round((prev + 0.1) * 10) / 10);
+          playheadController.setTime(next);
+          return next;
+        });
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -173,7 +185,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedClipId, clips, totalDuration, commitClips, handleUndo, handleRedo]);
+  }, [selectedClipId, clips, totalDuration, commitClips, handleUndo, handleRedo, playheadController]);
 
   // Actions
   const handlePickSelect = (expression, mode, targetClip) => {
@@ -211,6 +223,7 @@ export default function App() {
       setPast([]);
       setFuture([]);
       setPlayhead(0);
+      playheadController.setTime(0);
       setIsPlaying(false);
       setSelectedClipId(null);
       setHasExported(false);
@@ -296,6 +309,7 @@ export default function App() {
           playhead={playhead}
           isPlaying={isPlaying}
           totalDuration={totalDuration}
+          playheadController={playheadController}
           onPlayheadChange={setPlayhead}
           onTogglePlay={setIsPlaying}
         />
@@ -307,6 +321,7 @@ export default function App() {
         playhead={playhead}
         selectedClipId={selectedClipId}
         totalDuration={totalDuration}
+        playheadController={playheadController}
         onPlayheadChange={setPlayhead}
         onSelectClip={setSelectedClipId}
         onReorderClips={handleReorderClips}

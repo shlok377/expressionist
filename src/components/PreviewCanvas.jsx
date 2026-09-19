@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { findClipAtTime } from '../utils/timeline.js';
 import { Image as ImageIcon, Play, Pause } from 'lucide-react';
 
@@ -7,50 +7,77 @@ export default function PreviewCanvas({
   playhead = 0,
   isPlaying = false,
   totalDuration = 0,
+  playheadController,
   onPlayheadChange,
   onTogglePlay,
 }) {
   const canvasRef = useRef(null);
   const imageCacheRef = useRef(new Map());
+  const currentClipIdRef = useRef(null);
+  const playheadRef = useRef(playhead);
+  const isPlayingRef = useRef(isPlaying);
+  const lastReactSyncRef = useRef(0);
   const [activeClipName, setActiveClipName] = useState(null);
+  const [displayTime, setDisplayTime] = useState(playhead);
 
-  // Pre-cache images in clips whenever clips change
+  // Keep isPlayingRef and playheadRef in sync
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // Sync from external playhead changes (scrubbing, seeking)
+  useEffect(() => {
+    playheadRef.current = playhead;
+    setDisplayTime(playhead);
+    if (playheadController) {
+      playheadController.setTime(playhead);
+    }
+  }, [playhead, playheadController]);
+
+  // Pre-cache & async decode images in clips
   useEffect(() => {
     clips.forEach((clip) => {
       const url = clip.expression?.url;
       if (url && !imageCacheRef.current.has(url)) {
         const img = new Image();
         img.src = url;
+        // Asynchronous decode to prevent main-thread jank
+        if ('decode' in img) {
+          img.decode().catch(() => {});
+        }
         imageCacheRef.current.set(url, img);
       }
     });
   }, [clips]);
 
-  // Find active clip at current playhead
-  const activeMatch = findClipAtTime(clips, playhead);
-  const activeClip = activeMatch?.clip || null;
-
-  useEffect(() => {
-    setActiveClipName(activeClip?.expression?.name || null);
-  }, [activeClip]);
-
-  // Render to canvas
-  useEffect(() => {
+  // Function to draw clip to canvas ONLY when needed (dirty check)
+  const drawClip = useCallback((clip, force = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear background to M3 surface-container-lowest
-    ctx.fillStyle = '#0c0e13';
-    ctx.fillRect(0, 0, width, height);
-
-    if (!activeClip) {
+    // If no clip, clear once
+    if (!clip) {
+      if (currentClipIdRef.current !== null || force) {
+        ctx.fillStyle = '#0c0e13';
+        ctx.fillRect(0, 0, width, height);
+        currentClipIdRef.current = null;
+        setActiveClipName(null);
+      }
       return;
     }
 
-    const imgUrl = activeClip.expression?.url;
+    // Optimization: Dirty check - skip redraw if clip is identical
+    if (!force && clip.id === currentClipIdRef.current) {
+      return;
+    }
+
+    currentClipIdRef.current = clip.id;
+    setActiveClipName(clip.expression?.name || null);
+
+    const imgUrl = clip.expression?.url;
     let img = imageCacheRef.current.get(imgUrl);
 
     if (!img) {
@@ -59,11 +86,10 @@ export default function PreviewCanvas({
       imageCacheRef.current.set(imgUrl, img);
     }
 
-    const draw = () => {
+    const render = () => {
       ctx.fillStyle = '#0c0e13';
       ctx.fillRect(0, 0, width, height);
 
-      // Fit image inside canvas maintaining 3:4 aspect ratio
       const imgAspect = img.width / img.height || 3 / 4;
       const canvasAspect = width / height;
 
@@ -81,18 +107,24 @@ export default function PreviewCanvas({
       }
 
       ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingQuality = 'medium';
       ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
     };
 
     if (img.complete && img.naturalWidth > 0) {
-      draw();
+      render();
     } else {
-      img.onload = draw;
+      img.onload = render;
     }
-  }, [activeClip, playhead]);
+  }, []);
 
-  // Playback requestAnimationFrame loop
+  // Handle manual scrub / clips change redraw
+  useEffect(() => {
+    const match = findClipAtTime(clips, playheadRef.current);
+    drawClip(match?.clip || null, true);
+  }, [clips, drawClip]);
+
+  // Decoupled 60 FPS Animation Loop
   useEffect(() => {
     if (!isPlaying || totalDuration <= 0) return;
 
@@ -100,18 +132,49 @@ export default function PreviewCanvas({
     let lastTime = performance.now();
 
     const loop = (currentTime) => {
+      if (!isPlayingRef.current) return;
+
       const deltaSeconds = (currentTime - lastTime) / 1000;
       lastTime = currentTime;
 
-      const nextPlayhead = playhead + deltaSeconds;
+      const nextPlayhead = playheadRef.current + deltaSeconds;
 
       if (nextPlayhead >= totalDuration) {
+        // Stop and reset to 0:00 per spec
+        playheadRef.current = 0;
+        if (playheadController) {
+          playheadController.setTime(0);
+        }
+        setDisplayTime(0);
         onPlayheadChange(0);
         onTogglePlay(false);
-      } else {
-        onPlayheadChange(nextPlayhead);
-        animationFrameId = requestAnimationFrame(loop);
+
+        // Draw first frame
+        const firstMatch = findClipAtTime(clips, 0);
+        drawClip(firstMatch?.clip || null, true);
+        return;
       }
+
+      playheadRef.current = nextPlayhead;
+
+      // 1. Direct 60 FPS update to timeline playhead via controller (bypasses React render)
+      if (playheadController) {
+        playheadController.setTime(nextPlayhead);
+      }
+
+      // 2. Dirty-checked canvas draw: only draws if the active clip changed!
+      const activeMatch = findClipAtTime(clips, nextPlayhead);
+      if (activeMatch?.clip?.id !== currentClipIdRef.current) {
+        drawClip(activeMatch?.clip || null, false);
+      }
+
+      // 3. Throttled UI state sync (~10 FPS / every 100ms) for time display
+      if (currentTime - lastReactSyncRef.current >= 100) {
+        lastReactSyncRef.current = currentTime;
+        setDisplayTime(nextPlayhead);
+      }
+
+      animationFrameId = requestAnimationFrame(loop);
     };
 
     animationFrameId = requestAnimationFrame(loop);
@@ -120,8 +183,10 @@ export default function PreviewCanvas({
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
+      // On pause / unmount, sync exact playhead back to React
+      onPlayheadChange(playheadRef.current);
     };
-  }, [isPlaying, playhead, totalDuration, onPlayheadChange, onTogglePlay]);
+  }, [isPlaying, totalDuration, clips, playheadController, drawClip, onPlayheadChange, onTogglePlay]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 relative">
@@ -129,8 +194,8 @@ export default function PreviewCanvas({
       <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-[24px] overflow-hidden border border-[#44474f] bg-[#0c0e13] flex items-center justify-center group">
         <canvas
           ref={canvasRef}
-          width={1080}
-          height={1440}
+          width={720}
+          height={960}
           className="w-full h-full object-contain"
         />
 
@@ -169,7 +234,7 @@ export default function PreviewCanvas({
 
         {/* Timestamp Chip */}
         <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] font-mono text-xs text-[#c4c6d0] pointer-events-none">
-          <span className="text-[#a8c7fa] font-medium">{playhead.toFixed(2)}s</span>
+          <span className="text-[#a8c7fa] font-medium">{displayTime.toFixed(2)}s</span>
           <span className="text-[#8e9099] mx-1">/</span>
           <span>{totalDuration.toFixed(2)}s</span>
         </div>
