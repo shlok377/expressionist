@@ -4,10 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chokidar from 'chokidar';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { ExportCompiler } from './ExportCompiler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +19,11 @@ if (!fs.existsSync(EXPRESSIONS_DIR)) {
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
+
+const exportCompiler = new ExportCompiler({
+  expressionsDir: EXPRESSIONS_DIR,
+  tempDir: TEMP_DIR,
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -122,73 +124,8 @@ app.post('/api/export', async (req, res) => {
       return res.status(400).json({ error: 'No clips provided for export' });
     }
 
-    const timestamp = Date.now();
-    const concatFilePath = path.join(TEMP_DIR, `concat_${timestamp}.txt`);
-    const outputFileName = `export_${timestamp}.mp4`;
-    const outputFilePath = path.join(TEMP_DIR, outputFileName);
-
-    // Build concat demuxer content
-    // Format:
-    // file 'path'
-    // duration 0.6
-    // ...
-    // file 'path' (last file repeated without duration)
-    let concatLines = [];
-    for (let i = 0; i < clips.length; i++) {
-      const clip = clips[i];
-      const imageName = clip.expression?.name;
-      if (!imageName) continue;
-      const fullImagePath = path.join(EXPRESSIONS_DIR, imageName);
-      if (!fs.existsSync(fullImagePath)) {
-        return res.status(400).json({ error: `Image not found: ${imageName}` });
-      }
-
-      // Escape single quotes for ffmpeg concat
-      const escapedPath = fullImagePath.replace(/'/g, "'\\''");
-      concatLines.push(`file '${escapedPath}'`);
-      concatLines.push(`duration ${clip.duration}`);
-    }
-
-    // FFmpeg concat demuxer requirement: repeat the last file
-    if (clips.length > 0) {
-      const lastImageName = clips[clips.length - 1].expression?.name;
-      if (lastImageName) {
-        const fullImagePath = path.join(EXPRESSIONS_DIR, lastImageName);
-        const escapedPath = fullImagePath.replace(/'/g, "'\\''");
-        concatLines.push(`file '${escapedPath}'`);
-      }
-    }
-
-    fs.writeFileSync(concatFilePath, concatLines.join('\n'));
-
-    // Execute FFmpeg
-    const ffmpegArgs = [
-      '-y',
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', concatFilePath,
-      '-fps_mode', 'vfr',
-      '-pix_fmt', 'yuv420p',
-      '-c:v', 'libx264',
-      outputFilePath,
-    ];
-
-    await execFileAsync('ffmpeg', ffmpegArgs);
-
-    // Cleanup concat file
-    try {
-      fs.unlinkSync(concatFilePath);
-    } catch {}
-
-    const stats = fs.statSync(outputFilePath);
-    res.json({
-      success: true,
-      filename: outputFileName,
-      downloadUrl: `/api/download/${outputFileName}`,
-      streamUrl: `/temp/${encodeURIComponent(outputFileName)}`,
-      size: stats.size,
-      totalDuration: clips.reduce((acc, c) => acc + (c.duration || 0), 0),
-    });
+    const result = await exportCompiler.compile(clips);
+    res.json(result);
   } catch (err) {
     console.error('Export error:', err);
     res.status(500).json({ error: err.message || 'Export failed' });

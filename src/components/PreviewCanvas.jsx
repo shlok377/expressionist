@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { findClipAtTime } from '../utils/timeline.js';
+import { ExpressionTextureCache } from '../core/ExpressionTextureCache.js';
 import { Image as ImageIcon, Play, Pause } from 'lucide-react';
 
 const CANVAS_WIDTH = 720;
@@ -12,73 +13,20 @@ export default function PreviewCanvas({
   totalDuration = 0,
   playbackEngine,
   playheadController,
+  textureCache,
   onPlayheadChange,
   onTogglePlay,
 }) {
   const canvasRef = useRef(null);
-  const bitmapCacheRef = useRef(new Map());
-  const imageFallbackCacheRef = useRef(new Map());
+  const cache = useRef(textureCache || new ExpressionTextureCache()).current;
   const currentClipIdRef = useRef(null);
   const timeDisplayRef = useRef(null);
   const [activeClipName, setActiveClipName] = useState(null);
 
-  /**
-   * Pre-scales and decodes an image off the main thread using createImageBitmap.
-   * Caches the resulting GPU-ready ImageBitmap for instant 1:1 drawing.
-   */
-  const loadPreScaledBitmap = useCallback(async (url) => {
-    if (!url || bitmapCacheRef.current.has(url)) {
-      return bitmapCacheRef.current.get(url);
-    }
-
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-
-      let bitmap;
-      if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
-        try {
-          // Off-thread decoding AND high-quality downsampling to 720x960
-          bitmap = await window.createImageBitmap(blob, {
-            resizeWidth: CANVAS_WIDTH,
-            resizeHeight: CANVAS_HEIGHT,
-            resizeQuality: 'high',
-          });
-        } catch {
-          // Fallback to standard off-thread decoding without resize options
-          bitmap = await window.createImageBitmap(blob);
-        }
-      } else {
-        // Fallback for environments without createImageBitmap
-        const img = new Image();
-        img.src = url;
-        if ('decode' in img) await img.decode();
-        bitmap = img;
-      }
-
-      bitmapCacheRef.current.set(url, bitmap);
-      return bitmap;
-    } catch (err) {
-      console.warn('Bitmap decoding failed for', url, err);
-      // Fallback to Image element
-      if (!imageFallbackCacheRef.current.has(url)) {
-        const img = new Image();
-        img.src = url;
-        imageFallbackCacheRef.current.set(url, img);
-      }
-      return null;
-    }
-  }, []);
-
-  // Pre-load and pre-decode all clip bitmaps when clips change
+  // Pre-load and pre-decode all clip textures when clips change
   useEffect(() => {
-    clips.forEach((clip) => {
-      const url = clip.expression?.url;
-      if (url) {
-        loadPreScaledBitmap(url);
-      }
-    });
-  }, [clips, loadPreScaledBitmap]);
+    cache.preloadExpressions(clips);
+  }, [clips, cache]);
 
   /**
    * Draws the active clip with dirty checking and GPU-accelerated blitting.
@@ -108,57 +56,37 @@ export default function PreviewCanvas({
     setActiveClipName(clip.expression?.name || null);
 
     const imgUrl = clip.expression?.url;
-    const bitmap = bitmapCacheRef.current.get(imgUrl);
+    const texture = cache.getTexture(imgUrl);
 
-    if (bitmap) {
-      // 1:1 Instant GPU Texture Blit (0 downsampling CPU cost!)
-      ctx.drawImage(bitmap, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    } else {
-      // If bitmap is still decoding asynchronously in background, draw fallback image
-      let img = imageFallbackCacheRef.current.get(imgUrl);
-      if (!img) {
-        img = new Image();
-        img.src = imgUrl;
-        imageFallbackCacheRef.current.set(imgUrl, img);
-      }
-
-      const renderFallback = () => {
+    if (texture) {
+      // 1:1 Instant GPU Texture Blit
+      if (typeof ImageBitmap !== 'undefined' && texture instanceof ImageBitmap) {
+        ctx.drawImage(texture, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      } else {
+        // Fallback HTMLImageElement with aspect-ratio letterboxing
         ctx.fillStyle = '#0c0e13';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-        const imgAspect = img.width / img.height || 3 / 4;
-        const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
-
-        let drawWidth = CANVAS_WIDTH;
-        let drawHeight = CANVAS_HEIGHT;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (canvasAspect > imgAspect) {
-          drawWidth = CANVAS_HEIGHT * imgAspect;
-          offsetX = (CANVAS_WIDTH - drawWidth) / 2;
-        } else {
-          drawHeight = CANVAS_WIDTH / imgAspect;
-          offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
-        }
-
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-      };
-
-      if (img.complete && img.naturalWidth > 0) {
-        renderFallback();
-      } else {
-        img.onload = renderFallback;
+        const { drawWidth, drawHeight, offsetX, offsetY } = cache.calculateLetterbox(
+          texture.naturalWidth || texture.width,
+          texture.naturalHeight || texture.height,
+          CANVAS_WIDTH,
+          CANVAS_HEIGHT
+        );
+        ctx.drawImage(texture, offsetX, offsetY, drawWidth, drawHeight);
       }
+    } else {
+      // Clear canvas while texture decodes asynchronously
+      ctx.fillStyle = '#0c0e13';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      // Trigger background bitmap load for subsequent frames
-      loadPreScaledBitmap(imgUrl).then((loadedBitmap) => {
-        if (loadedBitmap && currentClipIdRef.current === clip.id) {
-          ctx.drawImage(loadedBitmap, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // Trigger background load and redraw once ready
+      cache.loadTexture(imgUrl).then((loadedTexture) => {
+        if (loadedTexture && currentClipIdRef.current === clip.id) {
+          drawClip(clip, true);
         }
       });
     }
-  }, [loadPreScaledBitmap]);
+  }, [cache]);
 
   // Frame tick handler (high frequency 60 FPS updates from PlaybackEngine)
   const handleFrameTick = useCallback((time) => {
