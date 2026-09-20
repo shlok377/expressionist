@@ -10,6 +10,7 @@ export default function PreviewCanvas({
   playhead = 0,
   isPlaying = false,
   totalDuration = 0,
+  playbackEngine,
   playheadController,
   onPlayheadChange,
   onTogglePlay,
@@ -18,26 +19,8 @@ export default function PreviewCanvas({
   const bitmapCacheRef = useRef(new Map());
   const imageFallbackCacheRef = useRef(new Map());
   const currentClipIdRef = useRef(null);
-  const playheadRef = useRef(playhead);
-  const isPlayingRef = useRef(isPlaying);
   const timeDisplayRef = useRef(null);
   const [activeClipName, setActiveClipName] = useState(null);
-
-  // Keep isPlayingRef updated
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
-
-  // Sync from external playhead changes (scrubbing, seeking)
-  useEffect(() => {
-    playheadRef.current = playhead;
-    if (timeDisplayRef.current) {
-      timeDisplayRef.current.textContent = `${playhead.toFixed(2)}s`;
-    }
-    if (playheadController) {
-      playheadController.setTime(playhead);
-    }
-  }, [playhead, playheadController]);
 
   /**
    * Pre-scales and decodes an image off the main thread using createImageBitmap.
@@ -177,76 +160,62 @@ export default function PreviewCanvas({
     }
   }, [loadPreScaledBitmap]);
 
-  // Handle manual scrub / clips change redraw
-  useEffect(() => {
-    const match = findClipAtTime(clips, playheadRef.current);
-    drawClip(match?.clip || null, true);
+  // Frame tick handler (high frequency 60 FPS updates from PlaybackEngine)
+  const handleFrameTick = useCallback((time) => {
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = `${time.toFixed(2)}s`;
+    }
+
+    const activeMatch = findClipAtTime(clips, time);
+    if (activeMatch?.clip?.id !== currentClipIdRef.current) {
+      drawClip(activeMatch?.clip || null, false);
+    }
   }, [clips, drawClip]);
 
-  // Decoupled 60 FPS Animation Loop (Zero React Re-renders During Playback)
+  // Subscribe to PlaybackEngine 60 FPS frame ticks
   useEffect(() => {
-    if (!isPlaying || totalDuration <= 0) return;
+    if (!playbackEngine) return;
 
-    let animationFrameId;
-    let lastTime = performance.now();
+    // Initial render at current engine time
+    handleFrameTick(playbackEngine.getTime());
 
-    const loop = (currentTime) => {
-      if (!isPlayingRef.current) return;
+    const unsubscribe = playbackEngine.subscribeFrame((time) => {
+      handleFrameTick(time);
+    });
+    return unsubscribe;
+  }, [playbackEngine, handleFrameTick]);
 
-      const deltaSeconds = (currentTime - lastTime) / 1000;
-      lastTime = currentTime;
+  // Fallback subscription for legacy PlayheadController
+  useEffect(() => {
+    if (playbackEngine || !playheadController) return;
 
-      const nextPlayhead = playheadRef.current + deltaSeconds;
+    handleFrameTick(playheadController.getTime());
+    const unsubscribe = playheadController.subscribe((time) => {
+      handleFrameTick(time);
+    });
+    return unsubscribe;
+  }, [playbackEngine, playheadController, handleFrameTick]);
 
-      if (nextPlayhead >= totalDuration) {
-        // Stop and reset to 0:00 per spec
-        playheadRef.current = 0;
-        if (playheadController) {
-          playheadController.setTime(0);
-        }
-        if (timeDisplayRef.current) {
-          timeDisplayRef.current.textContent = '0.00s';
-        }
-        onPlayheadChange(0);
-        onTogglePlay(false);
+  // Redraw when clips array changes or initial playhead updates
+  useEffect(() => {
+    const initialTime = playbackEngine ? playbackEngine.getTime() : playhead;
+    const match = findClipAtTime(clips, initialTime);
+    drawClip(match?.clip || null, true);
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = `${initialTime.toFixed(2)}s`;
+    }
+  }, [clips, playbackEngine, playhead, drawClip]);
 
-        // Draw first frame
-        const firstMatch = findClipAtTime(clips, 0);
-        drawClip(firstMatch?.clip || null, true);
-        return;
-      }
+  const handleToggle = () => {
+    if (playbackEngine) {
+      playbackEngine.togglePlay();
+    } else if (onTogglePlay) {
+      onTogglePlay(!isPlaying);
+    }
+  };
 
-      playheadRef.current = nextPlayhead;
-
-      // 1. Direct 60 FPS update to timeline playhead via controller (bypasses React render)
-      if (playheadController) {
-        playheadController.setTime(nextPlayhead);
-      }
-
-      // 2. Direct DOM update for time HUD (zero React re-renders)
-      if (timeDisplayRef.current) {
-        timeDisplayRef.current.textContent = `${nextPlayhead.toFixed(2)}s`;
-      }
-
-      // 3. Dirty-checked canvas draw: only draws if the active clip changed!
-      const activeMatch = findClipAtTime(clips, nextPlayhead);
-      if (activeMatch?.clip?.id !== currentClipIdRef.current) {
-        drawClip(activeMatch?.clip || null, false);
-      }
-
-      animationFrameId = requestAnimationFrame(loop);
-    };
-
-    animationFrameId = requestAnimationFrame(loop);
-
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      // On pause / unmount, sync exact playhead back to React state
-      onPlayheadChange(playheadRef.current);
-    };
-  }, [isPlaying, totalDuration, clips, playheadController, drawClip, onPlayheadChange, onTogglePlay]);
+  const activeIsPlaying = playbackEngine ? playbackEngine.getState().isPlaying : isPlaying;
+  const currentTime = playbackEngine ? playbackEngine.getTime() : playhead;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 relative">
@@ -283,11 +252,11 @@ export default function PreviewCanvas({
         {/* Quick Play/Pause Control on Hover - M3 FAB Style */}
         {clips.length > 0 && (
           <button
-            onClick={() => onTogglePlay()}
+            onClick={handleToggle}
             className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition duration-150"
           >
             <div className="w-14 h-14 rounded-2xl bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] flex items-center justify-center transition">
-              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current ml-0.5" />}
+              {activeIsPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current ml-0.5" />}
             </div>
           </button>
         )}
@@ -295,7 +264,7 @@ export default function PreviewCanvas({
         {/* Timestamp Chip with direct DOM ref for 60 FPS update */}
         <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-[#1d2024] border border-[#44474f] font-mono text-xs text-[#c4c6d0] pointer-events-none flex items-center">
           <span ref={timeDisplayRef} className="text-[#a8c7fa] font-medium min-w-[36px]">
-            {playhead.toFixed(2)}s
+            {currentTime.toFixed(2)}s
           </span>
           <span className="text-[#8e9099] mx-1">/</span>
           <span>{totalDuration.toFixed(2)}s</span>

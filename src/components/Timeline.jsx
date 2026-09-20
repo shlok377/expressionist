@@ -9,6 +9,7 @@ export default function Timeline({
   playhead = 0,
   selectedClipId = null,
   totalDuration = 0,
+  playbackEngine,
   playheadController,
   onPlayheadChange,
   onSelectClip,
@@ -46,20 +47,32 @@ export default function Timeline({
     }
   }, []);
 
-  // Subscribe to PlayheadController for 60 FPS decoupled updates
+  // Subscribe to PlaybackEngine for 60 FPS frame ticks
   useEffect(() => {
-    if (!playheadController) return;
+    if (!playbackEngine) return;
+    updatePlayheadDOM(playbackEngine.getTime());
+    const unsubscribe = playbackEngine.subscribeFrame((time) => {
+      updatePlayheadDOM(time);
+    });
+    return unsubscribe;
+  }, [playbackEngine, updatePlayheadDOM]);
+
+  // Fallback subscription for legacy PlayheadController
+  useEffect(() => {
+    if (playbackEngine || !playheadController) return;
     updatePlayheadDOM(playheadController.getTime());
     const unsubscribe = playheadController.subscribe((time) => {
       updatePlayheadDOM(time);
     });
     return unsubscribe;
-  }, [playheadController, updatePlayheadDOM]);
+  }, [playbackEngine, playheadController, updatePlayheadDOM]);
 
   // Sync on manual playhead prop changes
   useEffect(() => {
-    updatePlayheadDOM(playhead);
-  }, [playhead, updatePlayheadDOM]);
+    if (!playbackEngine && !playheadController) {
+      updatePlayheadDOM(playhead);
+    }
+  }, [playbackEngine, playheadController, playhead, updatePlayheadDOM]);
 
   // Handle Playhead Scrubbing
   const handleScrub = useCallback(
@@ -72,13 +85,19 @@ export default function Timeline({
       const time = Math.max(0, Math.min(totalDuration, x / PIXELS_PER_SECOND));
       const rounded = Math.round(time * 100) / 100;
 
-      updatePlayheadDOM(rounded);
-      if (playheadController) {
-        playheadController.setTime(rounded);
+      if (playbackEngine) {
+        playbackEngine.seek(rounded);
+      } else {
+        updatePlayheadDOM(rounded);
+        if (playheadController) {
+          playheadController.setTime(rounded);
+        }
+        if (onPlayheadChange) {
+          onPlayheadChange(rounded);
+        }
       }
-      onPlayheadChange(rounded);
     },
-    [totalDuration, playheadController, updatePlayheadDOM, onPlayheadChange]
+    [totalDuration, playbackEngine, playheadController, updatePlayheadDOM, onPlayheadChange]
   );
 
   const handleRulerMouseDown = (e) => {
@@ -177,6 +196,8 @@ export default function Timeline({
     majorTicks.push(s);
   }
 
+  const initialPlayhead = playbackEngine ? playbackEngine.getTime() : playhead;
+
   return (
     <div className="h-56 bg-[#191c20] border-t border-[#44474f] flex flex-col select-none relative z-10">
       {/* Timeline Header */}
@@ -226,7 +247,7 @@ export default function Timeline({
         {/* Playhead Scrubber Head on Ruler (GPU Accelerated with translate3d) */}
         <div
           ref={playheadScrubberRef}
-          style={{ transform: `translate3d(${playhead * PIXELS_PER_SECOND}px, 0, 0)` }}
+          style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
           className="absolute top-0 bottom-0 z-30 pointer-events-none will-change-transform"
         >
           <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md -translate-x-1/2 flex items-center justify-center">
@@ -247,7 +268,7 @@ export default function Timeline({
           {/* Playhead Vertical Line (GPU Accelerated with translate3d) */}
           <div
             ref={playheadLineRef}
-            style={{ transform: `translate3d(${playhead * PIXELS_PER_SECOND}px, 0, 0)` }}
+            style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
             className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none will-change-transform"
           />
 
