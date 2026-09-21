@@ -1,9 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   MIN_CLIP_DURATION,
   MAX_CLIP_DURATION,
   DEFAULT_CLIP_DURATION,
+  DEFAULT_TRANSITION_DURATION,
+  MIN_TRANSITION_DURATION,
+  MAX_TRANSITION_DURATION,
   clampDuration,
+  clampTransitionDuration,
+  calculateScalePop,
   calculateTotalDuration,
   findClipAtTime,
   insertClipAfterPlayhead,
@@ -12,8 +17,6 @@ import {
   duplicateClip,
   deleteClip,
   PlayheadController,
-  TimelineSequence,
-  PlaybackEngine,
 } from '../src/utils/timeline.js';
 
 describe('Timeline Logic', () => {
@@ -40,7 +43,6 @@ describe('Timeline Logic', () => {
       { id: '3', name: 'clip 3', duration: 0.4 },
     ];
 
-    // Time 0.3 should be in clip 1
     const match1 = findClipAtTime(clips, 0.3);
     expect(match1).not.toBeNull();
     expect(match1.clip.id).toBe('1');
@@ -48,7 +50,6 @@ describe('Timeline Logic', () => {
     expect(match1.startTime).toBe(0);
     expect(match1.localTime).toBeCloseTo(0.3);
 
-    // Time 0.8 should be in clip 2 (starts at 0.6, ends at 1.6)
     const match2 = findClipAtTime(clips, 0.8);
     expect(match2).not.toBeNull();
     expect(match2.clip.id).toBe('2');
@@ -56,11 +57,9 @@ describe('Timeline Logic', () => {
     expect(match2.startTime).toBe(0.6);
     expect(match2.localTime).toBeCloseTo(0.2);
 
-    // Time equal to total duration should return the last clip
     const matchEnd = findClipAtTime(clips, 2.0);
     expect(matchEnd.clip.id).toBe('3');
 
-    // Time beyond total duration
     const matchBeyond = findClipAtTime(clips, 3.5);
     expect(matchBeyond).toBeNull();
   });
@@ -164,205 +163,25 @@ describe('Timeline Logic', () => {
   });
 });
 
-describe('TimelineSequence Module', () => {
-  function createStorageMock(initial = {}) {
-    const map = new Map(Object.entries(initial));
-    return {
-      getItem: (k) => (map.has(k) ? map.get(k) : null),
-      setItem: (k, v) => map.set(k, String(v)),
-      removeItem: (k) => map.delete(k),
-    };
-  }
-
-  it('initializes from storage or initialClips and computes total duration', () => {
-    const storage = createStorageMock({
-      expressionist_clips: JSON.stringify([
-        { id: 'c1', duration: 0.8, expression: { name: 'a.png' } },
-        { id: 'c2', duration: 1.2, expression: { name: 'b.png' } },
-      ]),
-    });
-
-    const seq = new TimelineSequence({ storage });
-    const state = seq.getState();
-    expect(state.clips.length).toBe(2);
-    expect(state.totalDuration).toBe(2.0);
-    expect(state.canUndo).toBe(false);
-    expect(state.canRedo).toBe(false);
+describe('Transition Logic', () => {
+  it('clamps transition duration between 0.03s and 0.20s with 2 decimal precision', () => {
+    expect(clampTransitionDuration(0.01)).toBe(0.03);
+    expect(clampTransitionDuration(0.08)).toBe(0.08);
+    expect(clampTransitionDuration(0.25)).toBe(0.20);
+    expect(clampTransitionDuration(0.089999999)).toBe(0.09);
   });
 
-  it('inserts clip, auto-selects it, records undo step, and persists', () => {
-    const storage = createStorageMock();
-    const seq = new TimelineSequence({ storage });
+  it('calculates scale pop smoothly easing from 1.06 to 1.0', () => {
+    // At start (t = 0), scale is 1.06
+    expect(calculateScalePop(0, 0.08)).toBeCloseTo(1.06);
 
-    const inserted = seq.insert({ name: 'smile.png' }, 0);
-    expect(inserted.id).toBeDefined();
-    expect(inserted.duration).toBe(0.6);
+    // Midpoint (t = 0.04), scale is between 1.0 and 1.06
+    const midScale = calculateScalePop(0.04, 0.08);
+    expect(midScale).toBeGreaterThan(1.0);
+    expect(midScale).toBeLessThan(1.06);
 
-    const state = seq.getState();
-    expect(state.clips.length).toBe(1);
-    expect(state.selectedClipId).toBe(inserted.id);
-    expect(state.canUndo).toBe(true);
-
-    // Verify storage persistence
-    const saved = JSON.parse(storage.getItem('expressionist_clips'));
-    expect(saved.length).toBe(1);
-    expect(saved[0].id).toBe(inserted.id);
-  });
-
-  it('removes clip and clears selectedClipId if deleted clip was selected', () => {
-    const storage = createStorageMock();
-    const seq = new TimelineSequence({
-      storage,
-      initialClips: [
-        { id: 'c1', duration: 0.5, expression: { name: '1.png' } },
-        { id: 'c2', duration: 0.5, expression: { name: '2.png' } },
-      ],
-    });
-
-    seq.select('c1');
-    expect(seq.getState().selectedClipId).toBe('c1');
-
-    seq.remove('c1');
-    const state = seq.getState();
-    expect(state.clips.length).toBe(1);
-    expect(state.clips[0].id).toBe('c2');
-    expect(state.selectedClipId).toBeNull();
-  });
-
-  it('updates duration with clamping and persists', () => {
-    const seq = new TimelineSequence({
-      initialClips: [{ id: 'c1', duration: 0.6, expression: { name: '1.png' } }],
-    });
-
-    seq.updateDuration('c1', 3.0);
-    expect(seq.getState().clips[0].duration).toBe(2.0);
-
-    seq.updateDuration('c1', 0.05);
-    expect(seq.getState().clips[0].duration).toBe(0.2);
-  });
-
-  it('supports undo and redo preserving selection and clips history', () => {
-    const seq = new TimelineSequence({ initialClips: [] });
-
-    const clipA = seq.insert({ name: 'a.png' }, 0);
-    const clipB = seq.insert({ name: 'b.png' }, 0.6);
-    expect(seq.getState().clips.length).toBe(2);
-
-    // Undo clipB insertion
-    expect(seq.undo()).toBe(true);
-    expect(seq.getState().clips.length).toBe(1);
-    expect(seq.getState().clips[0].id).toBe(clipA.id);
-    expect(seq.getState().canRedo).toBe(true);
-
-    // Redo clipB insertion
-    expect(seq.redo()).toBe(true);
-    expect(seq.getState().clips.length).toBe(2);
-    expect(seq.getState().clips[1].id).toBe(clipB.id);
-  });
-
-  it('resets project and clears storage', () => {
-    const storage = createStorageMock({
-      expressionist_clips: JSON.stringify([{ id: 'c1', duration: 1.0 }]),
-    });
-    const seq = new TimelineSequence({ storage });
-    expect(seq.getState().clips.length).toBe(1);
-
-    seq.reset();
-    expect(seq.getState().clips.length).toBe(0);
-    expect(seq.getState().selectedClipId).toBeNull();
-    expect(storage.getItem('expressionist_clips')).toBeNull();
-  });
-});
-
-describe('PlaybackEngine Module', () => {
-  function createVirtualClock() {
-    let currentTime = 0;
-    let nextId = 1;
-    const callbacks = new Map();
-
-    return {
-      now: () => currentTime,
-      requestFrame: (cb) => {
-        const id = nextId++;
-        callbacks.set(id, cb);
-        return id;
-      },
-      cancelFrame: (id) => callbacks.delete(id),
-      tick: (deltaMs) => {
-        currentTime += deltaMs;
-        const currentCallbacks = Array.from(callbacks.values());
-        callbacks.clear();
-        for (const cb of currentCallbacks) {
-          cb(currentTime);
-        }
-      },
-    };
-  }
-
-  it('seeks and steps within clamped bounds [0, totalDuration]', () => {
-    const engine = new PlaybackEngine({ totalDuration: 5.0 });
-
-    engine.seek(2.5);
-    expect(engine.getTime()).toBe(2.5);
-
-    // Clamps to total duration
-    engine.seek(10.0);
-    expect(engine.getTime()).toBe(5.0);
-
-    // Clamps to 0
-    engine.seek(-2.0);
-    expect(engine.getTime()).toBe(0);
-
-    // Steps
-    engine.step(0.4);
-    expect(engine.getTime()).toBe(0.4);
-
-    engine.step(-0.2);
-    expect(engine.getTime()).toBe(0.2);
-  });
-
-  it('plays, pauses, and notifies state subscribers', () => {
-    const engine = new PlaybackEngine({ totalDuration: 3.0 });
-    let lastState = null;
-    engine.subscribe((state) => {
-      lastState = state;
-    });
-
-    engine.play();
-    expect(engine.getState().isPlaying).toBe(true);
-    expect(lastState.isPlaying).toBe(true);
-
-    engine.pause();
-    expect(engine.getState().isPlaying).toBe(false);
-    expect(lastState.isPlaying).toBe(false);
-  });
-
-  it('advances playhead on clock ticks and delivers 60 FPS frame notifications', () => {
-    const clock = createVirtualClock();
-    const engine = new PlaybackEngine({ totalDuration: 2.0, clock });
-
-    const frameTicks = [];
-    engine.subscribeFrame((time) => {
-      frameTicks.push(time);
-    });
-
-    engine.play();
-    clock.tick(500); // 0.5s
-    expect(engine.getTime()).toBeCloseTo(0.5);
-    expect(frameTicks.length).toBeGreaterThan(0);
-
-    clock.tick(500); // 1.0s
-    expect(engine.getTime()).toBeCloseTo(1.0);
-  });
-
-  it('halts and resets to 0:00 when reaching sequence end (boundary invariant)', () => {
-    const clock = createVirtualClock();
-    const engine = new PlaybackEngine({ initialTime: 0.8, totalDuration: 1.0, clock });
-
-    engine.play();
-    clock.tick(300); // Advances past 1.0s
-
-    expect(engine.getState().isPlaying).toBe(false);
-    expect(engine.getTime()).toBe(0);
+    // At end (t >= 0.08), scale is exactly 1.0
+    expect(calculateScalePop(0.08, 0.08)).toBe(1.0);
+    expect(calculateScalePop(0.15, 0.08)).toBe(1.0);
   });
 });

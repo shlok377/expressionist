@@ -108,3 +108,25 @@ export class PlayheadController {
     return () => this.subscribers.delete(fn);
   }
 }
+
+export const DEFAULT_TRANSITION_DURATION = 0.08; // 80ms
+export const MIN_TRANSITION_DURATION = 0.03;     // 30ms
+export const MAX_TRANSITION_DURATION = 0.20;     // 200ms
+
+/**
+ * Clamps transition duration between 0.03s and 0.20s with 2 decimal precision.
+ */
+export function clampTransitionDuration(duration) {
+  const rounded = Math.round(duration * 100) / 100;
+  return Math.min(MAX_TRANSITION_DURATION, Math.max(MIN_TRANSITION_DURATION, rounded));
+}
+
+/**
+ * Calculates the Scale Pop easing factor for a given local clip time.
+ * Over [0, transitionDuration], eases smoothly from (1 + popIntensity) to 1.0.
+ */
+export function calculateScalePop(localTime, transitionDuration = DEFAULT_TRANSITION_DURATION, popIntensity = 0.06) {
+  if (localTime >= transitionDuration || transitionDuration <= 0) return 1.0;
+  const progress = Math.max(0, Math.min(1, localTime / transitionDuration));
+  return 1.0 + popIntensity * Math.pow(1 - progress, 2);
+}

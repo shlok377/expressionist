@@ -4,7 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chokidar from 'chokidar';
-import { ExportCompiler } from './ExportCompiler.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,11 +22,6 @@ if (!fs.existsSync(EXPRESSIONS_DIR)) {
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
-
-const exportCompiler = new ExportCompiler({
-  expressionsDir: EXPRESSIONS_DIR,
-  tempDir: TEMP_DIR,
-});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,7 +75,6 @@ app.get('/api/expressions/stream', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Send initial state
   const initialData = JSON.stringify({
     event: 'init',
     expressions: getExpressionsList(),
@@ -116,16 +113,75 @@ watcher.on('add', () => broadcastExpressionsUpdate());
 watcher.on('unlink', () => broadcastExpressionsUpdate());
 watcher.on('change', () => broadcastExpressionsUpdate());
 
-// POST /api/export
+// POST /api/export with Scale Pop Transition support
 app.post('/api/export', async (req, res) => {
   try {
-    const { clips } = req.body;
+    const { clips, transitionDuration = 0.08 } = req.body;
     if (!Array.isArray(clips) || clips.length === 0) {
       return res.status(400).json({ error: 'No clips provided for export' });
     }
 
-    const result = await exportCompiler.compile(clips);
-    res.json(result);
+    const popDuration = Math.max(0.02, Math.min(0.20, parseFloat(transitionDuration) || 0.08));
+    const timestamp = Date.now();
+    const outputFileName = `export_${timestamp}.mp4`;
+    const outputFilePath = path.join(TEMP_DIR, outputFileName);
+
+    // Validate images exist
+    for (const clip of clips) {
+      const imageName = clip.expression?.name;
+      if (!imageName) continue;
+      const fullImagePath = path.join(EXPRESSIONS_DIR, imageName);
+      if (!fs.existsSync(fullImagePath)) {
+        return res.status(400).json({ error: `Image not found: ${imageName}` });
+      }
+    }
+
+    // Build FFmpeg inputs & filter_complex for Scale Pop
+    const ffmpegArgs = ['-y'];
+    const filterChains = [];
+    const concatInputs = [];
+
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      const fullImagePath = path.join(EXPRESSIONS_DIR, clip.expression.name);
+      
+      ffmpegArgs.push('-loop', '1', '-t', clip.duration.toString(), '-i', fullImagePath);
+
+      // Apply Scale Pop filter on each clip
+      filterChains.push(
+        `[${i}:v]scale='1792*(1+0.06*max(0,1-t/${popDuration}))':'2400*(1+0.06*max(0,1-t/${popDuration}))':eval=frame,crop=1792:2400[v${i}]`
+      );
+      concatInputs.push(`[v${i}]`);
+    }
+
+    let filterComplex = filterChains.join('; ');
+    if (clips.length > 1) {
+      filterComplex += `; ${concatInputs.join('')}concat=n=${clips.length}:v=1:a=0[outv]`;
+    } else {
+      filterComplex += `; [v0]copy[outv]`;
+    }
+
+    ffmpegArgs.push(
+      '-filter_complex', filterComplex,
+      '-map', '[outv]',
+      '-r', '60',
+      '-pix_fmt', 'yuv420p',
+      '-c:v', 'libx264',
+      outputFilePath
+    );
+
+    await execFileAsync('ffmpeg', ffmpegArgs);
+
+    const stats = fs.statSync(outputFilePath);
+    res.json({
+      success: true,
+      filename: outputFileName,
+      downloadUrl: `/api/download/${outputFileName}`,
+      streamUrl: `/temp/${encodeURIComponent(outputFileName)}`,
+      size: stats.size,
+      totalDuration: clips.reduce((acc, c) => acc + (c.duration || 0), 0),
+      transitionDuration: popDuration,
+    });
   } catch (err) {
     console.error('Export error:', err);
     res.status(500).json({ error: err.message || 'Export failed' });

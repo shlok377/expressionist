@@ -5,27 +5,64 @@ import Timeline from './components/Timeline.jsx';
 import PickExpressionModal from './components/PickExpressionModal.jsx';
 import ModifyDurationModal from './components/ModifyDurationModal.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
-import { TimelineSequence, PlaybackEngine } from './utils/timeline.js';
+import {
+  calculateTotalDuration,
+  insertClipAfterPlayhead,
+  reorderClips,
+  updateClipDuration,
+  duplicateClip,
+  deleteClip,
+  replaceClipExpression,
+  clampDuration,
+  clampTransitionDuration,
+  DEFAULT_TRANSITION_DURATION,
+  PlayheadController,
+} from './utils/timeline.js';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
+const STORAGE_KEY_CLIPS = 'expressionist_clips';
 const STORAGE_KEY_EXPORTED = 'expressionist_has_exported';
+const STORAGE_KEY_TRANSITION = 'expressionist_transition_duration';
 
 export default function App() {
   // Library state
   const [expressions, setExpressions] = useState([]);
 
-  // Deep Modules: TimelineSequence & PlaybackEngine
-  const timelineSequence = useRef(new TimelineSequence()).current;
-  const [seqState, setSeqState] = useState(() => timelineSequence.getState());
-
-  const playbackEngine = useRef(
-    new PlaybackEngine({ totalDuration: seqState.totalDuration })
-  ).current;
-  const [playbackState, setPlaybackState] = useState(() => playbackEngine.getState());
+  // Sequence state
+  const [clips, setClips] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CLIPS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [hasExported, setHasExported] = useState(() => {
     return localStorage.getItem(STORAGE_KEY_EXPORTED) === 'true';
   });
+
+  // Global Scale Pop transition duration (default 80ms)
+  const [transitionDuration, setTransitionDuration] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_TRANSITION);
+      return saved ? parseFloat(saved) : DEFAULT_TRANSITION_DURATION;
+    } catch {
+      return DEFAULT_TRANSITION_DURATION;
+    }
+  });
+
+  // History state for Undo / Redo
+  const [past, setPast] = useState([]);
+  const [future, setFuture] = useState([]);
+
+  // Playback & Selection
+  const [playhead, setPlayhead] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedClipId, setSelectedClipId] = useState(null);
+
+  // Decoupled Playhead Controller for 60 FPS playback without React diffing
+  const playheadController = useRef(new PlayheadController(0)).current;
 
   // Modals & Menus
   const [pickModalState, setPickModalState] = useState({
@@ -40,27 +77,24 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Subscribe to TimelineSequence state changes
+  // Auto-save clips
   useEffect(() => {
-    const unsubscribe = timelineSequence.subscribe((state) => {
-      setSeqState(state);
-      playbackEngine.setTotalDuration(state.totalDuration);
-    });
-    return unsubscribe;
-  }, [timelineSequence, playbackEngine]);
-
-  // Subscribe to PlaybackEngine state changes
-  useEffect(() => {
-    const unsubscribe = playbackEngine.subscribe((state) => {
-      setPlaybackState(state);
-    });
-    return unsubscribe;
-  }, [playbackEngine]);
+    try {
+      localStorage.setItem(STORAGE_KEY_CLIPS, JSON.stringify(clips));
+    } catch (err) {
+      console.error('Failed to save clips to localStorage', err);
+    }
+  }, [clips]);
 
   // Auto-save export status
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_EXPORTED, hasExported ? 'true' : 'false');
   }, [hasExported]);
+
+  // Auto-save transition duration
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_TRANSITION, transitionDuration.toString());
+  }, [transitionDuration]);
 
   // Load expressions & connect SSE
   useEffect(() => {
@@ -90,6 +124,36 @@ export default function App() {
     };
   }, []);
 
+  // Helper to commit clips with undo history
+  const commitClips = useCallback(
+    (newClips) => {
+      setPast((prev) => [...prev, clips]);
+      setFuture([]);
+      setClips(newClips);
+    },
+    [clips]
+  );
+
+  // Undo / Redo
+  const handleUndo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    setPast((prev) => prev.slice(0, prev.length - 1));
+    setFuture((prev) => [clips, ...prev]);
+    setClips(previous);
+  }, [past, clips]);
+
+  const handleRedo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setFuture((prev) => prev.slice(1));
+    setPast((prev) => [...prev, clips]);
+    setClips(next);
+  }, [future, clips]);
+
+  const totalDuration = calculateTotalDuration(clips);
+  const selectedClip = clips.find((c) => c.id === selectedClipId) || null;
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -97,28 +161,37 @@ export default function App() {
 
       if (e.code === 'Space') {
         e.preventDefault();
-        playbackEngine.togglePlay();
+        setIsPlaying((prev) => !prev);
       } else if (e.code === 'Delete' || e.code === 'Backspace') {
-        if (seqState.selectedClipId) {
+        if (selectedClipId) {
           e.preventDefault();
-          timelineSequence.remove(seqState.selectedClipId);
+          commitClips(deleteClip(clips, selectedClipId));
+          setSelectedClipId(null);
         }
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        playbackEngine.step(-0.1);
+        setPlayhead((prev) => {
+          const next = Math.max(0, Math.round((prev - 0.1) * 10) / 10);
+          playheadController.setTime(next);
+          return next;
+        });
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        playbackEngine.step(0.1);
+        setPlayhead((prev) => {
+          const next = Math.min(totalDuration, Math.round((prev + 0.1) * 10) / 10);
+          playheadController.setTime(next);
+          return next;
+        });
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
-          timelineSequence.redo();
+          handleRedo();
         } else {
-          timelineSequence.undo();
+          handleUndo();
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
-        timelineSequence.redo();
+        handleRedo();
       } else if (e.key === 'Escape') {
         setPickModalState({ isOpen: false, mode: 'insert', targetClip: null });
         setIsModifyDurationOpen(false);
@@ -128,41 +201,47 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seqState.selectedClipId, timelineSequence, playbackEngine]);
+  }, [selectedClipId, clips, totalDuration, commitClips, handleUndo, handleRedo, playheadController]);
 
   // Actions
   const handlePickSelect = (expression, mode, targetClip) => {
     if (mode === 'replace' && targetClip) {
-      timelineSequence.replaceExpression(targetClip.id, expression);
+      commitClips(replaceClipExpression(clips, targetClip.id, expression));
     } else {
-      timelineSequence.insert(expression, playbackEngine.getTime());
+      const nextClips = insertClipAfterPlayhead(clips, expression, playhead);
+      commitClips(nextClips);
     }
   };
 
   const handleDeleteSelected = () => {
-    if (seqState.selectedClipId) {
-      timelineSequence.remove(seqState.selectedClipId);
-    }
+    if (!selectedClipId) return;
+    commitClips(deleteClip(clips, selectedClipId));
+    setSelectedClipId(null);
   };
 
   const handleUpdateDuration = (clipId, newDuration) => {
-    timelineSequence.updateDuration(clipId, newDuration);
+    commitClips(updateClipDuration(clips, clipId, newDuration));
   };
 
   const handleReorderClips = (fromIndex, toIndex) => {
-    timelineSequence.reorder(fromIndex, toIndex);
+    commitClips(reorderClips(clips, fromIndex, toIndex));
   };
 
   const handleDuplicateClip = (clipId) => {
-    timelineSequence.duplicate(clipId);
+    commitClips(duplicateClip(clips, clipId));
   };
 
   const handleResetProject = () => {
     if (window.confirm('Are you sure you want to reset the project and clear all clips?')) {
-      timelineSequence.reset();
-      playbackEngine.pause();
-      playbackEngine.seek(0);
+      localStorage.removeItem(STORAGE_KEY_CLIPS);
       localStorage.removeItem(STORAGE_KEY_EXPORTED);
+      setClips([]);
+      setPast([]);
+      setFuture([]);
+      setPlayhead(0);
+      playheadController.setTime(0);
+      setIsPlaying(false);
+      setSelectedClipId(null);
       setHasExported(false);
       setToast({
         type: 'info',
@@ -171,9 +250,9 @@ export default function App() {
     }
   };
 
-  // Export Video
+  // Export Video with Scale Pop Transition
   const handleExport = async () => {
-    if (seqState.clips.length === 0 || isExporting) return;
+    if (clips.length === 0 || isExporting) return;
     setIsExporting(true);
     setToast(null);
 
@@ -181,7 +260,7 @@ export default function App() {
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clips: seqState.clips }),
+        body: JSON.stringify({ clips, transitionDuration }),
       });
 
       const data = await res.json();
@@ -201,7 +280,7 @@ export default function App() {
 
       setToast({
         type: 'success',
-        message: `Video exported successfully! (${data.filename})`,
+        message: `Video exported successfully with Scale Pop! (${data.filename})`,
         downloadUrl: data.downloadUrl,
       });
     } catch (err) {
@@ -220,45 +299,48 @@ export default function App() {
       {/* Top Navigation - M3 Top App Bar */}
       <Navbar
         expressionsCount={expressions.length}
-        selectedClip={seqState.selectedClip}
-        isPlaying={playbackState.isPlaying}
-        canUndo={seqState.canUndo}
-        canRedo={seqState.canRedo}
+        selectedClip={selectedClip}
+        isPlaying={isPlaying}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
         hasExported={hasExported}
         isExporting={isExporting}
-        totalDuration={seqState.totalDuration}
+        totalDuration={totalDuration}
         onPickExpression={() =>
           setPickModalState({ isOpen: true, mode: 'insert', targetClip: null })
         }
         onDeleteSelected={handleDeleteSelected}
-        onTogglePlay={() => playbackEngine.togglePlay()}
+        onTogglePlay={() => setIsPlaying((p) => !p)}
         onModifyDuration={() => setIsModifyDurationOpen(true)}
         onExport={handleExport}
         onResetProject={handleResetProject}
-        onUndo={() => timelineSequence.undo()}
-        onRedo={() => timelineSequence.redo()}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* Main Preview Area */}
       <main className="flex-1 flex flex-col min-h-0 bg-[#111318] relative">
         <PreviewCanvas
-          clips={seqState.clips}
-          playhead={playbackState.playhead}
-          isPlaying={playbackState.isPlaying}
-          totalDuration={seqState.totalDuration}
-          playbackEngine={playbackEngine}
-          onTogglePlay={() => playbackEngine.togglePlay()}
+          clips={clips}
+          playhead={playhead}
+          isPlaying={isPlaying}
+          totalDuration={totalDuration}
+          transitionDuration={transitionDuration}
+          playheadController={playheadController}
+          onPlayheadChange={setPlayhead}
+          onTogglePlay={setIsPlaying}
         />
       </main>
 
       {/* Timeline Editor */}
       <Timeline
-        clips={seqState.clips}
-        playhead={playbackState.playhead}
-        selectedClipId={seqState.selectedClipId}
-        totalDuration={seqState.totalDuration}
-        playbackEngine={playbackEngine}
-        onSelectClip={(clipId) => timelineSequence.select(clipId)}
+        clips={clips}
+        playhead={playhead}
+        selectedClipId={selectedClipId}
+        totalDuration={totalDuration}
+        playheadController={playheadController}
+        onPlayheadChange={setPlayhead}
+        onSelectClip={setSelectedClipId}
         onReorderClips={handleReorderClips}
         onUpdateDuration={handleUpdateDuration}
         onContextMenu={(x, y, clip) => setContextMenu({ x, y, clip })}
@@ -277,7 +359,7 @@ export default function App() {
       {/* Modify Duration Modal - M3 Dialog */}
       <ModifyDurationModal
         isOpen={isModifyDurationOpen}
-        clip={seqState.selectedClip}
+        clip={selectedClip}
         onSave={(clipId, duration) => handleUpdateDuration(clipId, duration)}
         onClose={() => setIsModifyDurationOpen(false)}
       />
@@ -288,17 +370,18 @@ export default function App() {
           x={contextMenu.x}
           y={contextMenu.y}
           clip={contextMenu.clip}
+          transitionDuration={transitionDuration}
           onClose={() => setContextMenu(null)}
           onIncreaseDuration={(clipId) => {
-            const c = seqState.clips.find((item) => item.id === clipId);
+            const c = clips.find((item) => item.id === clipId);
             if (c) handleUpdateDuration(clipId, c.duration + 0.1);
           }}
           onDecreaseDuration={(clipId) => {
-            const c = seqState.clips.find((item) => item.id === clipId);
+            const c = clips.find((item) => item.id === clipId);
             if (c) handleUpdateDuration(clipId, c.duration - 0.1);
           }}
           onCustomDuration={(clip) => {
-            timelineSequence.select(clip.id);
+            setSelectedClipId(clip.id);
             setIsModifyDurationOpen(true);
           }}
           onReplaceExpression={(clip) => {
@@ -306,7 +389,14 @@ export default function App() {
           }}
           onDuplicateClip={handleDuplicateClip}
           onDeleteClip={(clipId) => {
-            timelineSequence.remove(clipId);
+            commitClips(deleteClip(clips, clipId));
+            if (selectedClipId === clipId) setSelectedClipId(null);
+          }}
+          onIncreaseTransition={() => {
+            setTransitionDuration((prev) => clampTransitionDuration(prev + 0.01));
+          }}
+          onDecreaseTransition={() => {
+            setTransitionDuration((prev) => clampTransitionDuration(prev - 0.01));
           }}
         />
       )}
