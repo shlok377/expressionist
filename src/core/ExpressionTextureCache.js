@@ -7,7 +7,11 @@ export class ExpressionTextureCache {
   constructor({
     width = 720,
     height = 960,
-    fetcher = typeof fetch !== 'undefined' ? fetch : null,
+    fetcher = typeof window !== 'undefined' && window.fetch
+      ? window.fetch.bind(window)
+      : typeof fetch !== 'undefined'
+      ? fetch.bind(globalThis)
+      : null,
     bitmapCreator = typeof window !== 'undefined' && window.createImageBitmap
       ? window.createImageBitmap.bind(window)
       : null,
@@ -62,7 +66,10 @@ export class ExpressionTextureCache {
         throw new Error('No fetcher available');
       }
 
-      const res = await this.fetcher(url);
+      const targetContext = typeof window !== 'undefined' ? window : globalThis;
+      const res = await (typeof this.fetcher.call === 'function'
+        ? this.fetcher.call(targetContext, url)
+        : this.fetcher(url));
       const blob = await res.blob();
 
       let texture = null;

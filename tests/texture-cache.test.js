@@ -103,4 +103,27 @@ describe('ExpressionTextureCache Module', () => {
     expect(cache.has('/expressions/wink.png')).toBe(false);
     expect(cache.getTexture('/expressions/wink.png')).toBeNull();
   });
+
+  it('handles fetch implementations that require window/global context without throwing TypeError', async () => {
+    // Simulates browser window.fetch which throws if `this` is not Window/global
+    function strictFetch(url) {
+      if (this !== globalThis && (typeof window === 'undefined' || this !== window)) {
+        throw new TypeError("'fetch' called on an object that does not implement interface Window.");
+      }
+      return Promise.resolve({
+        blob: () => Promise.resolve(new Blob(['bytes'])),
+      });
+    }
+
+    const mockBitmap = { width: 720, height: 960 };
+    const mockBitmapCreator = vi.fn().mockResolvedValue(mockBitmap);
+
+    const cache = new ExpressionTextureCache({
+      fetcher: strictFetch,
+      bitmapCreator: mockBitmapCreator,
+    });
+
+    const texture = await cache.loadTexture('/expressions/test.png');
+    expect(texture).toBe(mockBitmap);
+  });
 });
