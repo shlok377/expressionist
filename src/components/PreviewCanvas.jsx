@@ -44,10 +44,7 @@ export default function PreviewCanvas({
     if (timeDisplayRef.current) {
       timeDisplayRef.current.textContent = `${playhead.toFixed(2)}s`;
     }
-    if (playheadController) {
-      playheadController.setTime(playhead);
-    }
-  }, [playhead, playheadController]);
+  }, [playhead]);
 
   /**
    * Pre-scales and decodes an image off the main thread using createImageBitmap.
@@ -200,9 +197,39 @@ export default function PreviewCanvas({
     }
   }, [loadPreScaledBitmap]);
 
+  // Subscribe to playheadController for instant scrubbing sync outside React lifecycle
+  useEffect(() => {
+    if (!playheadController) return;
+    const unsubscribe = playheadController.subscribe((time) => {
+      if (isPlayingRef.current) return;
+      playheadRef.current = time;
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = `${time.toFixed(2)}s`;
+      }
+      const match = findClipAtTime(clips, time);
+      if (match) {
+        const { scaleX, scaleY } = calculateBouncySquash(
+          match.localTime,
+          transitionDuration,
+          bounceIntensity,
+          squashFactor
+        );
+        drawClip(match.clip, true, scaleX, scaleY);
+      } else {
+        drawClip(null, true, 1.0, 1.0);
+      }
+    });
+    return unsubscribe;
+  }, [playheadController, clips, transitionDuration, bounceIntensity, squashFactor, drawClip]);
+
   // Handle manual scrub / clips change redraw
   useEffect(() => {
-    const match = findClipAtTime(clips, playheadRef.current);
+    if (isPlaying) return;
+    playheadRef.current = playhead;
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = `${playhead.toFixed(2)}s`;
+    }
+    const match = findClipAtTime(clips, playhead);
     if (match) {
       const { scaleX, scaleY } = calculateBouncySquash(
         match.localTime,
@@ -214,7 +241,7 @@ export default function PreviewCanvas({
     } else {
       drawClip(null, true, 1.0, 1.0);
     }
-  }, [clips, transitionDuration, bounceIntensity, squashFactor, drawClip]);
+  }, [playhead, isPlaying, clips, transitionDuration, bounceIntensity, squashFactor, drawClip]);
 
   // Decoupled 60 FPS Animation Loop with Bouncy Squash & Stretch
   useEffect(() => {
@@ -340,7 +367,7 @@ export default function PreviewCanvas({
         {/* Quick Play/Pause Control on Hover - M3 FAB Style */}
         {clips.length > 0 && (
           <button
-            onClick={() => onTogglePlay()}
+            onClick={() => onTogglePlay(!isPlaying)}
             className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition duration-150"
           >
             <div className="w-14 h-14 rounded-2xl bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] flex items-center justify-center transition">

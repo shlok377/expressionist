@@ -348,7 +348,7 @@ export default function App() {
           squashFactor={transitionSettings.squash}
           playheadController={playheadController}
           onPlayheadChange={setPlayhead}
-          onTogglePlay={setIsPlaying}
+          onTogglePlay={(val) => setIsPlaying((p) => (typeof val === 'boolean' ? val : !p))}
         />
       </main>
 

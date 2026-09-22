@@ -77,10 +77,12 @@ export default function Timeline({
   // Handle Playhead Scrubbing
   const handleScrub = useCallback(
     (clientX) => {
+      const track = trackRef.current;
       const ruler = rulerRef.current;
-      if (!ruler) return;
-      const rect = ruler.getBoundingClientRect();
-      const scrollLeft = ruler.scrollLeft || 0;
+      const refEl = ruler || track;
+      if (!refEl) return;
+      const rect = refEl.getBoundingClientRect();
+      const scrollLeft = track?.scrollLeft || ruler?.scrollLeft || 0;
       const x = clientX - rect.left + scrollLeft;
       const time = Math.max(0, Math.min(totalDuration, x / PIXELS_PER_SECOND));
       const rounded = Math.round(time * 100) / 100;
@@ -247,11 +249,14 @@ export default function Timeline({
         {/* Playhead Scrubber Head on Ruler (GPU Accelerated with translate3d) */}
         <div
           ref={playheadScrubberRef}
+          onMouseDown={handleRulerMouseDown}
           style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
-          className="absolute top-0 bottom-0 z-30 pointer-events-none will-change-transform"
+          className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform"
         >
-          <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md -translate-x-1/2 flex items-center justify-center">
-            <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
+          <div className="w-4 h-full -translate-x-1/2 flex items-center justify-center">
+            <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md flex items-center justify-center shadow-md">
+              <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -259,18 +264,34 @@ export default function Timeline({
       {/* Clips Area */}
       <div
         ref={trackRef}
+        onScroll={() => {
+          if (rulerRef.current && trackRef.current) {
+            rulerRef.current.scrollLeft = trackRef.current.scrollLeft;
+          }
+        }}
+        onMouseDown={(e) => {
+          // If clicking empty area of the track, scrub to that position
+          if (!e.target.closest('[draggable]') && !e.target.closest('.cursor-ew-resize')) {
+            handleRulerMouseDown(e);
+          }
+        }}
         className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative bg-[#111318]"
       >
         <div
           style={{ width: `${Math.max(totalRulerWidth, 1200)}px` }}
           className="h-full relative flex items-center"
         >
-          {/* Playhead Vertical Line (GPU Accelerated with translate3d) */}
+          {/* Playhead Vertical Line with grab hit-area (GPU Accelerated with translate3d) */}
           <div
             ref={playheadLineRef}
+            onMouseDown={handleRulerMouseDown}
             style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
-            className="absolute top-0 bottom-0 w-0.5 bg-[#a8c7fa] z-30 pointer-events-none will-change-transform"
-          />
+            className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform flex justify-center group/line"
+          >
+            <div className="w-4 h-full -translate-x-1/2 flex justify-center cursor-ew-resize">
+              <div className="w-0.5 h-full bg-[#a8c7fa] group-hover/line:w-1 group-hover/line:bg-[#d3e3fd] transition-all" />
+            </div>
+          </div>
 
           {/* Clips List */}
           {clips.length === 0 ? (
