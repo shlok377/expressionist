@@ -113,15 +113,27 @@ watcher.on('add', () => broadcastExpressionsUpdate());
 watcher.on('unlink', () => broadcastExpressionsUpdate());
 watcher.on('change', () => broadcastExpressionsUpdate());
 
-// POST /api/export with Scale Pop Transition support
+// POST /api/export with Bouncy Squash & Stretch Transition support
 app.post('/api/export', async (req, res) => {
   try {
-    const { clips, transitionDuration = 0.08 } = req.body;
+    const { clips, transitionSettings = {}, transitionDuration } = req.body;
     if (!Array.isArray(clips) || clips.length === 0) {
       return res.status(400).json({ error: 'No clips provided for export' });
     }
 
-    const popDuration = Math.max(0.02, Math.min(0.20, parseFloat(transitionDuration) || 0.08));
+    const duration = Math.max(
+      0.03,
+      Math.min(0.30, parseFloat(transitionSettings.duration || transitionDuration) || 0.10)
+    );
+    const intensity = Math.max(
+      0,
+      Math.min(0.30, parseFloat(transitionSettings.intensity) || 0.08)
+    );
+    const squash = Math.max(
+      0,
+      Math.min(0.25, parseFloat(transitionSettings.squash) || 0.06)
+    );
+
     const timestamp = Date.now();
     const outputFileName = `export_${timestamp}.mp4`;
     const outputFilePath = path.join(TEMP_DIR, outputFileName);
@@ -136,8 +148,8 @@ app.post('/api/export', async (req, res) => {
       }
     }
 
-    // Build FFmpeg inputs & filter_complex for Scale Pop
-    const ffmpegArgs = ['-y'];
+    // Build FFmpeg inputs & filter_complex for Bouncy Squash & Stretch
+    const ffmpegArgs = ['-y', '-loglevel', 'error'];
     const filterChains = [];
     const concatInputs = [];
 
@@ -147,9 +159,15 @@ app.post('/api/export', async (req, res) => {
       
       ffmpegArgs.push('-loop', '1', '-t', clip.duration.toString(), '-i', fullImagePath);
 
-      // Apply Scale Pop filter on each clip
+      // Truncate to even dimensions to ensure strict YUV420p alignment
+      const wExpr = `trunc(1792*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1+${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5))/2)*2`;
+      const hExpr = `trunc(2400*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1-${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5)*0.75)/2)*2`;
+
+      // Use a black 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
       filterChains.push(
-        `[${i}:v]scale='1792*(1+0.06*max(0,1-t/${popDuration}))':'2400*(1+0.06*max(0,1-t/${popDuration}))':eval=frame,crop=1792:2400[v${i}]`
+        `color=c=black:s=1792x2400:r=60:d=${clip.duration}[bg${i}]`,
+        `[${i}:v]scale=${wExpr}:${hExpr}:eval=frame[sc${i}]`,
+        `[bg${i}][sc${i}]overlay=(W-w)/2:(H-h)/2:eval=frame[v${i}]`
       );
       concatInputs.push(`[v${i}]`);
     }
@@ -170,7 +188,7 @@ app.post('/api/export', async (req, res) => {
       outputFilePath
     );
 
-    await execFileAsync('ffmpeg', ffmpegArgs);
+    await execFileAsync('ffmpeg', ffmpegArgs, { maxBuffer: 10 * 1024 * 1024 });
 
     const stats = fs.statSync(outputFilePath);
     res.json({
@@ -180,7 +198,7 @@ app.post('/api/export', async (req, res) => {
       streamUrl: `/temp/${encodeURIComponent(outputFileName)}`,
       size: stats.size,
       totalDuration: clips.reduce((acc, c) => acc + (c.duration || 0), 0),
-      transitionDuration: popDuration,
+      transitionSettings: { duration, intensity, squash },
     });
   } catch (err) {
     console.error('Export error:', err);

@@ -4,11 +4,14 @@ import {
   MAX_CLIP_DURATION,
   DEFAULT_CLIP_DURATION,
   DEFAULT_TRANSITION_DURATION,
+  DEFAULT_BOUNCE_INTENSITY,
+  DEFAULT_SQUASH_FACTOR,
   MIN_TRANSITION_DURATION,
   MAX_TRANSITION_DURATION,
   clampDuration,
   clampTransitionDuration,
   calculateScalePop,
+  calculateBouncySquash,
   calculateTotalDuration,
   findClipAtTime,
   insertClipAfterPlayhead,
@@ -164,24 +167,33 @@ describe('Timeline Logic', () => {
 });
 
 describe('Transition Logic', () => {
-  it('clamps transition duration between 0.03s and 0.20s with 2 decimal precision', () => {
+  it('clamps transition duration between 0.03s and 0.30s with 2 decimal precision', () => {
     expect(clampTransitionDuration(0.01)).toBe(0.03);
-    expect(clampTransitionDuration(0.08)).toBe(0.08);
-    expect(clampTransitionDuration(0.25)).toBe(0.20);
+    expect(clampTransitionDuration(0.10)).toBe(0.10);
+    expect(clampTransitionDuration(0.25)).toBe(0.25);
+    expect(clampTransitionDuration(0.35)).toBe(0.30);
     expect(clampTransitionDuration(0.089999999)).toBe(0.09);
   });
 
   it('calculates scale pop smoothly easing from 1.06 to 1.0', () => {
-    // At start (t = 0), scale is 1.06
-    expect(calculateScalePop(0, 0.08)).toBeCloseTo(1.06);
-
-    // Midpoint (t = 0.04), scale is between 1.0 and 1.06
-    const midScale = calculateScalePop(0.04, 0.08);
+    expect(calculateScalePop(0, 0.10)).toBeCloseTo(1.06);
+    const midScale = calculateScalePop(0.05, 0.10);
     expect(midScale).toBeGreaterThan(1.0);
     expect(midScale).toBeLessThan(1.06);
+    expect(calculateScalePop(0.10, 0.10)).toBe(1.0);
+    expect(calculateScalePop(0.15, 0.10)).toBe(1.0);
+  });
 
-    // At end (t >= 0.08), scale is exactly 1.0
-    expect(calculateScalePop(0.08, 0.08)).toBe(1.0);
-    expect(calculateScalePop(0.15, 0.08)).toBe(1.0);
+  it('calculates scaleX and scaleY with horizontal squash and stretch', () => {
+    const start = calculateBouncySquash(0, 0.10, 0.08, 0.06);
+    expect(start.scaleX).toBeGreaterThan(1.0);
+    expect(start.scaleY).toBeGreaterThan(1.0);
+
+    const mid = calculateBouncySquash(0.03, 0.10, 0.08, 0.06);
+    expect(mid.scaleX).toBeGreaterThan(mid.scaleY); // Horizontally stretched
+
+    const end = calculateBouncySquash(0.10, 0.10, 0.08, 0.06);
+    expect(end.scaleX).toBe(1.0);
+    expect(end.scaleY).toBe(1.0);
   });
 });

@@ -1,5 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { findClipAtTime, calculateScalePop, DEFAULT_TRANSITION_DURATION } from '../utils/timeline.js';
+import {
+  findClipAtTime,
+  calculateBouncySquash,
+  DEFAULT_TRANSITION_DURATION,
+  DEFAULT_BOUNCE_INTENSITY,
+  DEFAULT_SQUASH_FACTOR,
+} from '../utils/timeline.js';
 import { Image as ImageIcon, Play, Pause } from 'lucide-react';
 
 const CANVAS_WIDTH = 720;
@@ -11,6 +17,8 @@ export default function PreviewCanvas({
   isPlaying = false,
   totalDuration = 0,
   transitionDuration = DEFAULT_TRANSITION_DURATION,
+  bounceIntensity = DEFAULT_BOUNCE_INTENSITY,
+  squashFactor = DEFAULT_SQUASH_FACTOR,
   playheadController,
   onPlayheadChange,
   onTogglePlay,
@@ -19,7 +27,7 @@ export default function PreviewCanvas({
   const bitmapCacheRef = useRef(new Map());
   const imageFallbackCacheRef = useRef(new Map());
   const currentClipIdRef = useRef(null);
-  const lastDrawnScaleRef = useRef(1.0);
+  const lastDrawnTransformRef = useRef({ scaleX: 1.0, scaleY: 1.0 });
   const playheadRef = useRef(playhead);
   const isPlayingRef = useRef(isPlaying);
   const timeDisplayRef = useRef(null);
@@ -96,9 +104,9 @@ export default function PreviewCanvas({
   }, [clips, loadPreScaledBitmap]);
 
   /**
-   * Draws the active clip with Scale Pop center transform and dirty checking.
+   * Draws the active clip with bouncy squash & stretch center transform and dirty checking.
    */
-  const drawClip = useCallback((clip, force = false, scale = 1.0) => {
+  const drawClip = useCallback((clip, force = false, scaleX = 1.0, scaleY = 1.0) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -109,27 +117,35 @@ export default function PreviewCanvas({
         ctx.fillStyle = '#0c0e13';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         currentClipIdRef.current = null;
-        lastDrawnScaleRef.current = 1.0;
+        lastDrawnTransformRef.current = { scaleX: 1.0, scaleY: 1.0 };
         setActiveClipName(null);
       }
       return;
     }
 
     // Optimization: Dirty check - skip redraw if clip is identical and scale has settled at 1.0
-    if (!force && clip.id === currentClipIdRef.current && scale === 1.0 && lastDrawnScaleRef.current === 1.0) {
+    const lastTransform = lastDrawnTransformRef.current;
+    if (
+      !force &&
+      clip.id === currentClipIdRef.current &&
+      scaleX === 1.0 &&
+      scaleY === 1.0 &&
+      lastTransform.scaleX === 1.0 &&
+      lastTransform.scaleY === 1.0
+    ) {
       return;
     }
 
     currentClipIdRef.current = clip.id;
-    lastDrawnScaleRef.current = scale;
+    lastDrawnTransformRef.current = { scaleX, scaleY };
     setActiveClipName(clip.expression?.name || null);
 
     const imgUrl = clip.expression?.url;
     const bitmap = bitmapCacheRef.current.get(imgUrl);
 
-    // Calculate dimensions with scale pop centered
-    const drawWidth = CANVAS_WIDTH * scale;
-    const drawHeight = CANVAS_HEIGHT * scale;
+    // Calculate dimensions with bouncy horizontal squash & stretch centered
+    const drawWidth = CANVAS_WIDTH * scaleX;
+    const drawHeight = CANVAS_HEIGHT * scaleY;
     const offsetX = (CANVAS_WIDTH - drawWidth) / 2;
     const offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
 
@@ -160,8 +176,8 @@ export default function PreviewCanvas({
           baseHeight = CANVAS_WIDTH / imgAspect;
         }
 
-        const scaledW = baseWidth * scale;
-        const scaledH = baseHeight * scale;
+        const scaledW = baseWidth * scaleX;
+        const scaledH = baseHeight * scaleY;
         const fbOffsetX = (CANVAS_WIDTH - scaledW) / 2;
         const fbOffsetY = (CANVAS_HEIGHT - scaledH) / 2;
 
@@ -188,14 +204,19 @@ export default function PreviewCanvas({
   useEffect(() => {
     const match = findClipAtTime(clips, playheadRef.current);
     if (match) {
-      const scale = calculateScalePop(match.localTime, transitionDuration);
-      drawClip(match.clip, true, scale);
+      const { scaleX, scaleY } = calculateBouncySquash(
+        match.localTime,
+        transitionDuration,
+        bounceIntensity,
+        squashFactor
+      );
+      drawClip(match.clip, true, scaleX, scaleY);
     } else {
-      drawClip(null, true, 1.0);
+      drawClip(null, true, 1.0, 1.0);
     }
-  }, [clips, transitionDuration, drawClip]);
+  }, [clips, transitionDuration, bounceIntensity, squashFactor, drawClip]);
 
-  // Decoupled 60 FPS Animation Loop with Scale Pop Animation
+  // Decoupled 60 FPS Animation Loop with Bouncy Squash & Stretch
   useEffect(() => {
     if (!isPlaying || totalDuration <= 0) return;
 
@@ -222,7 +243,7 @@ export default function PreviewCanvas({
         onTogglePlay(false);
 
         const firstMatch = findClipAtTime(clips, 0);
-        drawClip(firstMatch?.clip || null, true, 1.0);
+        drawClip(firstMatch?.clip || null, true, 1.0, 1.0);
         return;
       }
 
@@ -238,20 +259,26 @@ export default function PreviewCanvas({
         timeDisplayRef.current.textContent = `${nextPlayhead.toFixed(2)}s`;
       }
 
-      // 3. Active clip & Scale Pop calculation
+      // 3. Active clip & Bouncy Squash calculation
       const activeMatch = findClipAtTime(clips, nextPlayhead);
       if (activeMatch) {
-        const scale = calculateScalePop(activeMatch.localTime, transitionDuration);
+        const { scaleX, scaleY } = calculateBouncySquash(
+          activeMatch.localTime,
+          transitionDuration,
+          bounceIntensity,
+          squashFactor
+        );
         const clipChanged = activeMatch.clip.id !== currentClipIdRef.current;
-        const isPopping = scale !== 1.0;
-        const wasPopping = lastDrawnScaleRef.current !== 1.0;
+        const isBouncing = scaleX !== 1.0 || scaleY !== 1.0;
+        const wasBouncing =
+          lastDrawnTransformRef.current.scaleX !== 1.0 || lastDrawnTransformRef.current.scaleY !== 1.0;
 
-        // Draw during pop window or on clip change or to settle back at 1.0
-        if (clipChanged || isPopping || wasPopping) {
-          drawClip(activeMatch.clip, false, scale);
+        // Draw during bounce window or on clip change or to settle back at 1.0
+        if (clipChanged || isBouncing || wasBouncing) {
+          drawClip(activeMatch.clip, false, scaleX, scaleY);
         }
       } else {
-        drawClip(null, false, 1.0);
+        drawClip(null, false, 1.0, 1.0);
       }
 
       animationFrameId = requestAnimationFrame(loop);
@@ -265,7 +292,18 @@ export default function PreviewCanvas({
       }
       onPlayheadChange(playheadRef.current);
     };
-  }, [isPlaying, totalDuration, clips, transitionDuration, playheadController, drawClip, onPlayheadChange, onTogglePlay]);
+  }, [
+    isPlaying,
+    totalDuration,
+    clips,
+    transitionDuration,
+    bounceIntensity,
+    squashFactor,
+    playheadController,
+    drawClip,
+    onPlayheadChange,
+    onTogglePlay,
+  ]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 relative">

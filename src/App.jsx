@@ -4,6 +4,7 @@ import PreviewCanvas from './components/PreviewCanvas.jsx';
 import Timeline from './components/Timeline.jsx';
 import PickExpressionModal from './components/PickExpressionModal.jsx';
 import ModifyDurationModal from './components/ModifyDurationModal.jsx';
+import CustomizeTransitionModal from './components/CustomizeTransitionModal.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import {
   calculateTotalDuration,
@@ -16,13 +17,15 @@ import {
   clampDuration,
   clampTransitionDuration,
   DEFAULT_TRANSITION_DURATION,
+  DEFAULT_BOUNCE_INTENSITY,
+  DEFAULT_SQUASH_FACTOR,
   PlayheadController,
 } from './utils/timeline.js';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 const STORAGE_KEY_CLIPS = 'expressionist_clips';
 const STORAGE_KEY_EXPORTED = 'expressionist_has_exported';
-const STORAGE_KEY_TRANSITION = 'expressionist_transition_duration';
+const STORAGE_KEY_TRANSITION_SETTINGS = 'expressionist_transition_settings';
 
 export default function App() {
   // Library state
@@ -42,13 +45,23 @@ export default function App() {
     return localStorage.getItem(STORAGE_KEY_EXPORTED) === 'true';
   });
 
-  // Global Scale Pop transition duration (default 80ms)
-  const [transitionDuration, setTransitionDuration] = useState(() => {
+  // Global Bouncy Transition Settings (default 0.1s, 8% bounce, 6% squash)
+  const [transitionSettings, setTransitionSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_TRANSITION);
-      return saved ? parseFloat(saved) : DEFAULT_TRANSITION_DURATION;
+      const saved = localStorage.getItem(STORAGE_KEY_TRANSITION_SETTINGS);
+      return saved ? JSON.parse(saved) : {
+        duration: DEFAULT_TRANSITION_DURATION,
+        intensity: DEFAULT_BOUNCE_INTENSITY,
+        squash: DEFAULT_SQUASH_FACTOR,
+        preset: 'snappy',
+      };
     } catch {
-      return DEFAULT_TRANSITION_DURATION;
+      return {
+        duration: DEFAULT_TRANSITION_DURATION,
+        intensity: DEFAULT_BOUNCE_INTENSITY,
+        squash: DEFAULT_SQUASH_FACTOR,
+        preset: 'snappy',
+      };
     }
   });
 
@@ -71,6 +84,7 @@ export default function App() {
     targetClip: null,
   });
   const [isModifyDurationOpen, setIsModifyDurationOpen] = useState(false);
+  const [isCustomizeTransitionOpen, setIsCustomizeTransitionOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, clip }
 
   // Export state & Toast
@@ -91,10 +105,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_EXPORTED, hasExported ? 'true' : 'false');
   }, [hasExported]);
 
-  // Auto-save transition duration
+  // Auto-save transition settings
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_TRANSITION, transitionDuration.toString());
-  }, [transitionDuration]);
+    localStorage.setItem(STORAGE_KEY_TRANSITION_SETTINGS, JSON.stringify(transitionSettings));
+  }, [transitionSettings]);
 
   // Load expressions & connect SSE
   useEffect(() => {
@@ -195,6 +209,7 @@ export default function App() {
       } else if (e.key === 'Escape') {
         setPickModalState({ isOpen: false, mode: 'insert', targetClip: null });
         setIsModifyDurationOpen(false);
+        setIsCustomizeTransitionOpen(false);
         setContextMenu(null);
       }
     };
@@ -250,7 +265,7 @@ export default function App() {
     }
   };
 
-  // Export Video with Scale Pop Transition
+  // Export Video with Custom Bouncy Squash Transition
   const handleExport = async () => {
     if (clips.length === 0 || isExporting) return;
     setIsExporting(true);
@@ -260,7 +275,10 @@ export default function App() {
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clips, transitionDuration }),
+        body: JSON.stringify({
+          clips,
+          transitionSettings,
+        }),
       });
 
       const data = await res.json();
@@ -280,7 +298,7 @@ export default function App() {
 
       setToast({
         type: 'success',
-        message: `Video exported successfully with Scale Pop! (${data.filename})`,
+        message: `Video exported successfully with Bouncy Squash! (${data.filename})`,
         downloadUrl: data.downloadUrl,
       });
     } catch (err) {
@@ -325,7 +343,9 @@ export default function App() {
           playhead={playhead}
           isPlaying={isPlaying}
           totalDuration={totalDuration}
-          transitionDuration={transitionDuration}
+          transitionDuration={transitionSettings.duration}
+          bounceIntensity={transitionSettings.intensity}
+          squashFactor={transitionSettings.squash}
           playheadController={playheadController}
           onPlayheadChange={setPlayhead}
           onTogglePlay={setIsPlaying}
@@ -364,13 +384,24 @@ export default function App() {
         onClose={() => setIsModifyDurationOpen(false)}
       />
 
+      {/* Customize Transition Modal - M3 Dialog */}
+      <CustomizeTransitionModal
+        isOpen={isCustomizeTransitionOpen}
+        settings={transitionSettings}
+        sampleImageUrl={clips[0]?.expression?.url || expressions[0]?.url}
+        onSave={(newSettings) => setTransitionSettings(newSettings)}
+        onClose={() => setIsCustomizeTransitionOpen(false)}
+      />
+
       {/* Right Click Context Menu - M3 Menu */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           clip={contextMenu.clip}
-          transitionDuration={transitionDuration}
+          transitionDuration={transitionSettings.duration}
+          bounceIntensity={transitionSettings.intensity}
+          squashFactor={transitionSettings.squash}
           onClose={() => setContextMenu(null)}
           onIncreaseDuration={(clipId) => {
             const c = clips.find((item) => item.id === clipId);
@@ -393,10 +424,21 @@ export default function App() {
             if (selectedClipId === clipId) setSelectedClipId(null);
           }}
           onIncreaseTransition={() => {
-            setTransitionDuration((prev) => clampTransitionDuration(prev + 0.01));
+            setTransitionSettings((prev) => ({
+              ...prev,
+              duration: clampTransitionDuration(prev.duration + 0.01),
+              preset: 'custom',
+            }));
           }}
           onDecreaseTransition={() => {
-            setTransitionDuration((prev) => clampTransitionDuration(prev - 0.01));
+            setTransitionSettings((prev) => ({
+              ...prev,
+              duration: clampTransitionDuration(prev.duration - 0.01),
+              preset: 'custom',
+            }));
+          }}
+          onCustomizeTransition={() => {
+            setIsCustomizeTransitionOpen(true);
           }}
         />
       )}

@@ -7,6 +7,7 @@ import {
   Copy,
   Trash2,
   Zap,
+  Sliders,
 } from 'lucide-react';
 import { MIN_TRANSITION_DURATION, MAX_TRANSITION_DURATION } from '../utils/timeline.js';
 
@@ -14,7 +15,9 @@ export default function ContextMenu({
   x,
   y,
   clip,
-  transitionDuration = 0.08,
+  transitionDuration = 0.10,
+  bounceIntensity = 0.08,
+  squashFactor = 0.06,
   onClose,
   onIncreaseDuration,
   onDecreaseDuration,
@@ -24,6 +27,7 @@ export default function ContextMenu({
   onDeleteClip,
   onIncreaseTransition,
   onDecreaseTransition,
+  onCustomizeTransition,
 }) {
   const menuRef = useRef(null);
 
@@ -50,7 +54,7 @@ export default function ContextMenu({
 
   // Prevent overflowing window bounds
   const menuWidth = 240;
-  const menuHeight = 360;
+  const menuHeight = 380;
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 10);
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 10);
 
@@ -58,7 +62,7 @@ export default function ContextMenu({
     <div
       ref={menuRef}
       style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-      className="fixed z-50 w-60 bg-[#282a2f] border border-[#44474f] rounded-2xl shadow-xl py-2 text-xs text-[#e2e2e9] divide-y divide-[#44474f] select-none"
+      className="fixed z-50 w-64 bg-[#282a2f] border border-[#44474f] rounded-2xl shadow-xl py-2 text-xs text-[#e2e2e9] divide-y divide-[#44474f] select-none"
     >
       {/* Clip Info Header */}
       <div className="px-3.5 py-1.5 text-[11px] font-medium text-[#c4c6d0] truncate flex items-center justify-between">
@@ -112,17 +116,29 @@ export default function ContextMenu({
         </button>
       </div>
 
-      {/* Global Scale Pop Transition Adjustments */}
+      {/* Global Transition (Scale Pop & Squash) Section */}
       <div className="py-1 bg-[#1f2126]/60">
         <div className="px-3.5 py-1 text-[10px] font-semibold text-[#8e9099] uppercase tracking-wider flex items-center justify-between">
           <span className="flex items-center space-x-1.5">
             <Zap className="w-3 h-3 text-[#a8c7fa]" />
-            <span>Global Scale Pop</span>
+            <span>Bouncy Transition</span>
           </span>
           <span className="font-mono text-[#a8c7fa]">
             {(transitionDuration * 1000).toFixed(0)}ms
           </span>
         </div>
+
+        {/* Option to Customize Transition More */}
+        <button
+          onClick={() => {
+            onCustomizeTransition();
+            onClose();
+          }}
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 hover:bg-[#33353a] text-[#a8c7fa] font-medium transition text-left"
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Customize Transition More...</span>
+        </button>
 
         <button
           onClick={() => {
@@ -133,9 +149,9 @@ export default function ContextMenu({
         >
           <span className="flex items-center space-x-2.5">
             <Plus className="w-3.5 h-3.5 text-[#a8c7fa]" />
-            <span>Pop Duration (+0.01s)</span>
+            <span>Speed (+0.01s)</span>
           </span>
-          <span className="text-[10px] text-[#8e9099] font-mono">max 200ms</span>
+          <span className="text-[10px] text-[#8e9099] font-mono">max 300ms</span>
         </button>
 
         <button
@@ -147,7 +163,7 @@ export default function ContextMenu({
         >
           <span className="flex items-center space-x-2.5">
             <Minus className="w-3.5 h-3.5 text-[#a8c7fa]" />
-            <span>Pop Duration (-0.01s)</span>
+            <span>Speed (-0.01s)</span>
           </span>
           <span className="text-[10px] text-[#8e9099] font-mono">min 30ms</span>
         </button>
