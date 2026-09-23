@@ -111,7 +111,7 @@ export default function PreviewCanvas({
     // If no clip, clear once
     if (!clip) {
       if (currentClipIdRef.current !== null || force) {
-        ctx.fillStyle = '#0000ff';
+        ctx.fillStyle = '#00ff00';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         currentClipIdRef.current = null;
         lastDrawnTransformRef.current = { scaleX: 1.0, scaleY: 1.0 };
@@ -147,7 +147,7 @@ export default function PreviewCanvas({
     const offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
 
     if (bitmap) {
-      ctx.fillStyle = '#0000ff';
+      ctx.fillStyle = '#00ff00';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(bitmap, offsetX, offsetY, drawWidth, drawHeight);
     } else {
@@ -159,7 +159,7 @@ export default function PreviewCanvas({
       }
 
       const renderFallback = () => {
-        ctx.fillStyle = '#0000ff';
+        ctx.fillStyle = '#00ff00';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
         const imgAspect = img.width / img.height || 3 / 4;
@@ -189,7 +189,7 @@ export default function PreviewCanvas({
 
       loadPreScaledBitmap(imgUrl).then((loadedBitmap) => {
         if (loadedBitmap && currentClipIdRef.current === clip.id) {
-          ctx.fillStyle = '#0000ff';
+          ctx.fillStyle = '#00ff00';
           ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
           ctx.drawImage(loadedBitmap, offsetX, offsetY, drawWidth, drawHeight);
         }
@@ -335,7 +335,7 @@ export default function PreviewCanvas({
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 relative">
       {/* Aspect ratio container (3:4 portrait) in M3 Card styling */}
-      <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-[24px] overflow-hidden border border-[#44474f] bg-[#0000ff] flex items-center justify-center group">
+      <div className="relative h-full max-h-[52vh] aspect-[3/4] rounded-[24px] overflow-hidden border border-[#44474f] bg-[#00ff00] flex items-center justify-center group">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}

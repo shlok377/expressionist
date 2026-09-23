@@ -134,7 +134,7 @@ export default function CustomizeTransitionModal({
               <span className="text-[10px] font-medium text-[#8e9099] uppercase tracking-wider mb-2">
                 Live Preview
               </span>
-              <div className="w-28 h-36 bg-[#0000ff] rounded-xl flex items-center justify-center p-2 relative overflow-hidden border border-[#44474f]">
+              <div className="w-28 h-36 bg-[#00ff00] rounded-xl flex items-center justify-center p-2 relative overflow-hidden border border-[#44474f]">
                 {sampleImageUrl ? (
                   <img
                     src={sampleImageUrl}

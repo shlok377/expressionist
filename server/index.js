@@ -163,9 +163,9 @@ app.post('/api/export', async (req, res) => {
       const wExpr = `trunc(1792*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1+${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5))/2)*2`;
       const hExpr = `trunc(2400*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1-${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5)*0.75)/2)*2`;
 
-      // Use a #0000ff (blue) 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
+      // Use a #00ff00 (green) 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
       filterChains.push(
-        `color=c=0x0000ff:s=1792x2400:r=60:d=${clip.duration}[bg${i}]`,
+        `color=c=0x00ff00:s=1792x2400:r=60:d=${clip.duration}[bg${i}]`,
         `[${i}:v]scale=${wExpr}:${hExpr}:eval=frame[sc${i}]`,
         `[bg${i}][sc${i}]overlay=(W-w)/2:(H-h)/2:eval=frame[v${i}]`
       );
