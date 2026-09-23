@@ -29,7 +29,7 @@ export default function CustomizeTransitionModal({
   const [duration, setDuration] = useState(DEFAULT_TRANSITION_DURATION);
   const [intensity, setIntensity] = useState(DEFAULT_BOUNCE_INTENSITY);
   const [squash, setSquash] = useState(DEFAULT_SQUASH_FACTOR);
-  const [activePreset, setActivePreset] = useState('snappy');
+  const [activePreset, setActivePreset] = useState('smooth-squash');
 
   // Preview animation state
   const [previewTransform, setPreviewTransform] = useState({ scaleX: 1, scaleY: 1 });
@@ -85,7 +85,7 @@ export default function CustomizeTransitionModal({
   };
 
   const handleResetDefaults = () => {
-    setActivePreset('snappy');
+    setActivePreset('smooth-squash');
     setDuration(DEFAULT_TRANSITION_DURATION);
     setIntensity(DEFAULT_BOUNCE_INTENSITY);
     setSquash(DEFAULT_SQUASH_FACTOR);
@@ -134,7 +134,7 @@ export default function CustomizeTransitionModal({
               <span className="text-[10px] font-medium text-[#8e9099] uppercase tracking-wider mb-2">
                 Live Preview
               </span>
-              <div className="w-28 h-36 bg-[#111318] rounded-xl flex items-center justify-center p-2 relative overflow-hidden border border-[#44474f]">
+              <div className="w-28 h-36 bg-[#0000ff] rounded-xl flex items-center justify-center p-2 relative overflow-hidden border border-[#44474f]">
                 {sampleImageUrl ? (
                   <img
                     src={sampleImageUrl}
@@ -226,7 +226,7 @@ export default function CustomizeTransitionModal({
               />
               <div className="flex justify-between text-[10px] text-[#8e9099] font-mono mt-1">
                 <span>30ms (ultra snappy)</span>
-                <span>Default: 100ms</span>
+                <span>Default: 300ms</span>
                 <span>300ms (slow spring)</span>
               </div>
             </div>
@@ -253,7 +253,7 @@ export default function CustomizeTransitionModal({
               />
               <div className="flex justify-between text-[10px] text-[#8e9099] font-mono mt-1">
                 <span>0% (no overshoot)</span>
-                <span>Default: 8%</span>
+                <span>Default: 4%</span>
                 <span>25% (extreme pop)</span>
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function CustomizeTransitionModal({
               />
               <div className="flex justify-between text-[10px] text-[#8e9099] font-mono mt-1">
                 <span>0% (uniform scaling)</span>
-                <span>Default: 6%</span>
+                <span>Default: 18%</span>
                 <span>20% (heavy squish)</span>
               </div>
             </div>

@@ -79,11 +79,12 @@ export default function Timeline({
     (clientX) => {
       const track = trackRef.current;
       const ruler = rulerRef.current;
-      const refEl = ruler || track;
+      const refEl = track || ruler;
       if (!refEl) return;
       const rect = refEl.getBoundingClientRect();
       const scrollLeft = track?.scrollLeft || ruler?.scrollLeft || 0;
-      const x = clientX - rect.left + scrollLeft;
+      const paddingLeft = 16; // matching px-4 padding on both ruler and track
+      const x = clientX - rect.left + scrollLeft - paddingLeft;
       const time = Math.max(0, Math.min(totalDuration, x / PIXELS_PER_SECOND));
       const rounded = Math.round(time * 100) / 100;
 
@@ -216,10 +217,11 @@ export default function Timeline({
       </div>
 
       {/* Ruler & Playhead Track */}
+      {/* Ruler & Playhead Track */}
       <div
         ref={rulerRef}
         onMouseDown={handleRulerMouseDown}
-        className="h-7 border-b border-[#44474f] bg-[#14161b] relative overflow-x-hidden cursor-pointer"
+        className="h-7 border-b border-[#44474f] bg-[#14161b] relative overflow-x-hidden cursor-pointer px-4"
       >
         <div style={{ width: `${totalRulerWidth}px` }} className="h-full relative pointer-events-none">
           {majorTicks.map((time) => {
@@ -244,18 +246,18 @@ export default function Timeline({
               </div>
             );
           })}
-        </div>
 
-        {/* Playhead Scrubber Head on Ruler (GPU Accelerated with translate3d) */}
-        <div
-          ref={playheadScrubberRef}
-          onMouseDown={handleRulerMouseDown}
-          style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
-          className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform"
-        >
-          <div className="w-4 h-full -translate-x-1/2 flex items-center justify-center">
-            <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md flex items-center justify-center shadow-md">
-              <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
+          {/* Playhead Scrubber Head on Ruler (GPU Accelerated with translate3d) */}
+          <div
+            ref={playheadScrubberRef}
+            onMouseDown={handleRulerMouseDown}
+            style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
+            className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform pointer-events-auto"
+          >
+            <div className="w-4 h-full -translate-x-1/2 flex items-center justify-center">
+              <div className="w-3.5 h-4 bg-[#a8c7fa] rounded-b-md flex items-center justify-center shadow-md">
+                <div className="w-1 h-1 bg-[#062e6f] rounded-full"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -275,7 +277,7 @@ export default function Timeline({
             handleRulerMouseDown(e);
           }
         }}
-        className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative bg-[#111318]"
+        className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-3 relative bg-[#111318]"
       >
         <div
           style={{ width: `${Math.max(totalRulerWidth, 1200)}px` }}
@@ -286,20 +288,20 @@ export default function Timeline({
             ref={playheadLineRef}
             onMouseDown={handleRulerMouseDown}
             style={{ transform: `translate3d(${initialPlayhead * PIXELS_PER_SECOND}px, 0, 0)` }}
-            className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform flex justify-center group/line"
+            className="absolute top-0 bottom-0 z-30 cursor-ew-resize will-change-transform flex justify-center group/line pointer-events-auto"
           >
             <div className="w-4 h-full -translate-x-1/2 flex justify-center cursor-ew-resize">
               <div className="w-0.5 h-full bg-[#a8c7fa] group-hover/line:w-1 group-hover/line:bg-[#d3e3fd] transition-all" />
             </div>
           </div>
 
-          {/* Clips List */}
+          {/* Clips List - contiguous with 0px gap so time and visual cuts match 1:1 */}
           {clips.length === 0 ? (
             <div className="h-28 w-full border border-dashed border-[#44474f] rounded-2xl flex items-center justify-center text-[#8e9099] text-xs">
               Timeline is empty. Click "Pick Expression" to add mascot clips.
             </div>
           ) : (
-            <div className="flex items-center h-28 space-x-2">
+            <div className="flex items-center h-28 space-x-0">
               {clips.map((clip, index) => {
                 const isSelected = selectedClipId === clip.id;
                 const isDragOver = dragOverIndex === index;
@@ -324,11 +326,11 @@ export default function Timeline({
                       onContextMenu(e.clientX, e.clientY, clip);
                     }}
                     style={{ width: `${widthPx}px` }}
-                    className={`group relative h-full rounded-2xl border flex flex-col justify-between p-2.5 cursor-pointer transition-all duration-150 ${
+                    className={`group relative h-full border -mr-px flex flex-col justify-between p-2.5 cursor-pointer transition-all duration-150 first:rounded-l-2xl last:rounded-r-2xl ${
                       isSelected
-                        ? 'bg-[#33353a] border-2 border-[#a8c7fa]'
+                        ? 'bg-[#33353a] border-2 border-[#a8c7fa] z-10'
                         : isDragOver
-                        ? 'bg-[#3f4759] border-[#8e9099]'
+                        ? 'bg-[#3f4759] border-[#8e9099] z-10'
                         : 'bg-[#282a2f] border-[#44474f] hover:bg-[#33353a]'
                     }`}
                   >

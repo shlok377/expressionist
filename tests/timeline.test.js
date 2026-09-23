@@ -196,4 +196,18 @@ describe('Transition Logic', () => {
     expect(end.scaleX).toBe(1.0);
     expect(end.scaleY).toBe(1.0);
   });
+
+  it('uses new default transition settings (300ms duration, 4% overshoot, 18% squash)', () => {
+    expect(DEFAULT_TRANSITION_DURATION).toBe(0.30);
+    expect(DEFAULT_BOUNCE_INTENSITY).toBe(0.04);
+    expect(DEFAULT_SQUASH_FACTOR).toBe(0.18);
+
+    const defaultAnim = calculateBouncySquash(0.05); // uses default args
+    expect(defaultAnim.scaleX).toBeGreaterThan(1.0);
+    expect(defaultAnim.scaleY).toBeDefined();
+
+    const settled = calculateBouncySquash(0.30);
+    expect(settled.scaleX).toBe(1.0);
+    expect(settled.scaleY).toBe(1.0);
+  });
 });

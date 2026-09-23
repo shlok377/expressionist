@@ -123,15 +123,15 @@ app.post('/api/export', async (req, res) => {
 
     const duration = Math.max(
       0.03,
-      Math.min(0.30, parseFloat(transitionSettings.duration || transitionDuration) || 0.10)
+      Math.min(0.30, parseFloat(transitionSettings.duration || transitionDuration) || 0.30)
     );
     const intensity = Math.max(
       0,
-      Math.min(0.30, parseFloat(transitionSettings.intensity) || 0.08)
+      Math.min(0.30, isNaN(parseFloat(transitionSettings.intensity)) ? 0.04 : parseFloat(transitionSettings.intensity))
     );
     const squash = Math.max(
       0,
-      Math.min(0.25, parseFloat(transitionSettings.squash) || 0.06)
+      Math.min(0.25, isNaN(parseFloat(transitionSettings.squash)) ? 0.18 : parseFloat(transitionSettings.squash))
     );
 
     const timestamp = Date.now();
@@ -163,9 +163,9 @@ app.post('/api/export', async (req, res) => {
       const wExpr = `trunc(1792*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1+${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5))/2)*2`;
       const hExpr = `trunc(2400*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1-${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5)*0.75)/2)*2`;
 
-      // Use a black 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
+      // Use a #0000ff (blue) 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
       filterChains.push(
-        `color=c=black:s=1792x2400:r=60:d=${clip.duration}[bg${i}]`,
+        `color=c=0x0000ff:s=1792x2400:r=60:d=${clip.duration}[bg${i}]`,
         `[${i}:v]scale=${wExpr}:${hExpr}:eval=frame[sc${i}]`,
         `[bg${i}][sc${i}]overlay=(W-w)/2:(H-h)/2:eval=frame[v${i}]`
       );

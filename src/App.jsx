@@ -45,7 +45,7 @@ export default function App() {
     return localStorage.getItem(STORAGE_KEY_EXPORTED) === 'true';
   });
 
-  // Global Bouncy Transition Settings (default 0.1s, 8% bounce, 6% squash)
+  // Global Bouncy Transition Settings (default 0.30s, 4% bounce, 18% squash)
   const [transitionSettings, setTransitionSettings] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TRANSITION_SETTINGS);
@@ -53,14 +53,14 @@ export default function App() {
         duration: DEFAULT_TRANSITION_DURATION,
         intensity: DEFAULT_BOUNCE_INTENSITY,
         squash: DEFAULT_SQUASH_FACTOR,
-        preset: 'snappy',
+        preset: 'smooth-squash',
       };
     } catch {
       return {
         duration: DEFAULT_TRANSITION_DURATION,
         intensity: DEFAULT_BOUNCE_INTENSITY,
         squash: DEFAULT_SQUASH_FACTOR,
-        preset: 'snappy',
+        preset: 'smooth-squash',
       };
     }
   });

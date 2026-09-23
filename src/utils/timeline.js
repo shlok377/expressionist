@@ -2,17 +2,18 @@ export const MIN_CLIP_DURATION = 0.2;
 export const MAX_CLIP_DURATION = 2.0;
 export const DEFAULT_CLIP_DURATION = 0.6;
 
-export const DEFAULT_TRANSITION_DURATION = 0.10; // 100ms
-export const DEFAULT_BOUNCE_INTENSITY = 0.08;     // 8% overshoot
-export const DEFAULT_SQUASH_FACTOR = 0.06;        // 6% horizontal squash/stretch
+export const DEFAULT_TRANSITION_DURATION = 0.30; // 300ms (0.30s)
+export const DEFAULT_BOUNCE_INTENSITY = 0.04;     // 4% overshoot
+export const DEFAULT_SQUASH_FACTOR = 0.18;        // 18% horizontal squash/stretch
 export const MIN_TRANSITION_DURATION = 0.03;      // 30ms
 export const MAX_TRANSITION_DURATION = 0.30;      // 300ms
 
 export const TRANSITION_PRESETS = [
+  { id: 'smooth-squash', name: 'Default (Smooth Squash)', duration: 0.30, intensity: 0.04, squash: 0.18 },
   { id: 'snappy', name: 'Snappy Spring', duration: 0.10, intensity: 0.08, squash: 0.06 },
-  { id: 'bouncy', name: 'Super Bouncy', duration: 0.12, intensity: 0.14, squash: 0.10 },
-  { id: 'cartoon', name: 'Cartoon Squash', duration: 0.14, intensity: 0.06, squash: 0.15 },
-  { id: 'subtle', name: 'Subtle Pop', duration: 0.07, intensity: 0.04, squash: 0.02 },
+  { id: 'bouncy', name: 'Super Bouncy', duration: 0.14, intensity: 0.15, squash: 0.10 },
+  { id: 'cartoon', name: 'Cartoon Rubber', duration: 0.18, intensity: 0.20, squash: 0.18 },
+  { id: 'subtle', name: 'Subtle Pop', duration: 0.06, intensity: 0.04, squash: 0.03 },
 ];
 
 /**
