@@ -247,12 +247,12 @@ export default function AiDirectorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#212429] border border-[#44474f] rounded-[28px] w-full max-w-2xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden text-[#e2e2e9]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in duration-150">
+      <div className="bg-[#212429] border border-[#36393e] rounded-[24px] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-[#e2e2e9]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#36393e] flex items-center justify-between shrink-0 bg-[#1d2024]">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0842a0] text-[#d3e3fd] flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-[#0842a0] text-[#d3e3fd] flex items-center justify-center">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
@@ -341,7 +341,7 @@ export default function AiDirectorModal({
               onClick={() => setActiveTab('text')}
               className={`flex-1 flex items-center justify-center space-x-2 py-2 rounded-xl text-xs font-medium transition ${
                 activeTab === 'text'
-                  ? 'bg-[#3f4759] text-[#dbe2f9] shadow-sm'
+                  ? 'bg-[#3f4759] text-[#dbe2f9]'
                   : 'text-[#c4c6d0] hover:text-[#e2e2e9]'
               }`}
             >
@@ -352,7 +352,7 @@ export default function AiDirectorModal({
               onClick={() => setActiveTab('mic')}
               className={`flex-1 flex items-center justify-center space-x-2 py-2 rounded-xl text-xs font-medium transition ${
                 activeTab === 'mic'
-                  ? 'bg-[#3f4759] text-[#dbe2f9] shadow-sm'
+                  ? 'bg-[#3f4759] text-[#dbe2f9]'
                   : 'text-[#c4c6d0] hover:text-[#e2e2e9]'
               }`}
             >
@@ -377,7 +377,7 @@ export default function AiDirectorModal({
                     <button
                       type="button"
                       onClick={toggleRecording}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-medium transition shadow-md ${
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-medium transition ${
                         isRecording
                           ? 'bg-[#8c1d18] text-[#f9dedc] hover:bg-[#a0221c] animate-pulse'
                           : 'bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa]'
@@ -481,10 +481,10 @@ export default function AiDirectorModal({
                   key={preset.id}
                   type="button"
                   onClick={() => setSelectedPresetId(preset.id)}
-                  className={`text-left p-3 rounded-xl border transition ${
+                  className={`text-left p-3 rounded-xl transition ${
                     selectedPresetId === preset.id
-                      ? 'bg-[#3f4759]/40 border-[#a8c7fa] text-[#e2e2e9]'
-                      : 'bg-[#181a1f] border-[#36393e] text-[#8e9099] hover:border-[#44474f]'
+                      ? 'bg-[#3f4759] text-[#e2e2e9]'
+                      : 'bg-[#181a1f] text-[#8e9099] hover:bg-[#282a2f]'
                   }`}
                 >
                   <div className="text-xs font-medium text-[#e2e2e9]">{preset.name}</div>
@@ -525,7 +525,7 @@ export default function AiDirectorModal({
             type="button"
             onClick={handleGenerate}
             disabled={isGenerating || isRecording}
-            className={`w-full py-3 rounded-full text-xs font-medium flex items-center justify-center space-x-2 shadow-lg transition ${
+            className={`w-full py-3 rounded-full text-xs font-medium flex items-center justify-center space-x-2 transition ${
               isGenerating || isRecording
                 ? 'bg-[#282a2f] text-[#8e9099] border border-[#44474f] cursor-not-allowed'
                 : 'bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa]'
@@ -591,7 +591,7 @@ export default function AiDirectorModal({
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="absolute top-2 right-2 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#3f4759] text-[#e2e2e9] hover:bg-[#4b5469] transition shadow-md"
+                  className="absolute top-2 right-2 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#3f4759] text-[#e2e2e9] hover:bg-[#4b5469] transition"
                   title="Copy to clipboard"
                 >
                   {isCopied ? (
