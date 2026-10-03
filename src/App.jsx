@@ -25,6 +25,10 @@ import {
   DEFAULT_GLOBAL_SCALE,
   PlayheadController,
 } from './utils/timeline.js';
+import {
+  jsonToTimelineClips,
+  insertSequenceAtPlayhead,
+} from './utils/timelineBridge.js';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 const STORAGE_KEY_CLIPS = 'expressionist_clips';
@@ -251,6 +255,33 @@ export default function App() {
     }
   };
 
+  const handleImportFromAiDirector = useCallback(
+    (items, mode = 'replace') => {
+      const hydratedClips = jsonToTimelineClips(items, expressions);
+      if (hydratedClips.length === 0) return;
+
+      if (mode === 'replace') {
+        commitClips(hydratedClips);
+        setPlayhead(0);
+        playheadController.setTime(0);
+        setSelectedClipId(hydratedClips[0]?.id || null);
+        setToast({
+          type: 'success',
+          message: `Imported ${hydratedClips.length} clips into timeline (replaced project).`,
+        });
+      } else {
+        const nextClips = insertSequenceAtPlayhead(clips, hydratedClips, playhead);
+        commitClips(nextClips);
+        setSelectedClipId(hydratedClips[0]?.id || null);
+        setToast({
+          type: 'success',
+          message: `Inserted ${hydratedClips.length} clips at ${playhead.toFixed(1)}s.`,
+        });
+      }
+    },
+    [expressions, clips, playhead, commitClips, playheadController]
+  );
+
   const handleDeleteSelected = () => {
     if (!selectedClipId) return;
     commitClips(deleteClip(clips, selectedClipId));
@@ -435,6 +466,8 @@ export default function App() {
         isOpen={isAiDirectorOpen}
         onClose={() => setIsAiDirectorOpen(false)}
         availableExpressions={expressions}
+        hasExistingClips={clips.length > 0}
+        onImportToTimeline={handleImportFromAiDirector}
       />
 
       {/* Right Click Context Menu - M3 Menu */}

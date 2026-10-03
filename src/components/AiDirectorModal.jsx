@@ -5,8 +5,6 @@ import {
   Mic,
   MicOff,
   FileText,
-  Copy,
-  Check,
   Key,
   Eye,
   EyeOff,
@@ -18,6 +16,9 @@ import {
   ExternalLink,
   Trash2,
   CheckCircle2,
+  ArrowDownToLine,
+  RotateCcw,
+  Plus,
 } from 'lucide-react';
 import {
   PACING_WPM,
@@ -32,6 +33,8 @@ export default function AiDirectorModal({
   isOpen,
   onClose,
   availableExpressions = [],
+  hasExistingClips = false,
+  onImportToTimeline,
 }) {
   // Credentials
   const [apiKey, setApiKey] = useState(() => {
@@ -39,6 +42,7 @@ export default function AiDirectorModal({
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showImportOptions, setShowImportOptions] = useState(false);
 
   // Input state
   const [activeTab, setActiveTab] = useState('text'); // 'text' | 'mic'
@@ -62,7 +66,6 @@ export default function AiDirectorModal({
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(null);
   const [resultData, setResultData] = useState(null);
   const [outputFormat, setOutputFormat] = useState('clean'); // 'clean' | 'extension' | 'json'
-  const [isCopied, setIsCopied] = useState(false);
 
   // Persist API Key
   useEffect(() => {
@@ -80,10 +83,11 @@ export default function AiDirectorModal({
     }
   }, []);
 
-  // Cleanup mic on unmount or close
+  // Cleanup on unmount or close
   useEffect(() => {
-    if (!isOpen && isRecording) {
-      stopRecording();
+    if (!isOpen) {
+      if (isRecording) stopRecording();
+      setShowImportOptions(false);
     }
   }, [isOpen]);
 
@@ -240,13 +244,25 @@ export default function AiDirectorModal({
     }
   }
 
-  // Copy sequence string to clipboard
-  function handleCopy() {
-    if (!resultData?.items) return;
-    const formatted = formatSequence(resultData.items, outputFormat);
-    navigator.clipboard.writeText(formatted);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+  // Import sequence into timeline
+  function handleImportClick() {
+    if (!resultData?.items || resultData.items.length === 0) return;
+    if (hasExistingClips) {
+      setShowImportOptions(true);
+    } else {
+      if (onImportToTimeline) {
+        onImportToTimeline(resultData.items, 'replace');
+      }
+      onClose();
+    }
+  }
+
+  function handleSelectImportMode(mode) {
+    if (onImportToTimeline && resultData?.items) {
+      onImportToTimeline(resultData.items, mode);
+    }
+    setShowImportOptions(false);
+    onClose();
   }
 
   return (
@@ -667,23 +683,64 @@ export default function AiDirectorModal({
                 </pre>
                 <button
                   type="button"
-                  onClick={handleCopy}
-                  className="absolute top-2 right-2 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#3f4759] text-[#e2e2e9] hover:bg-[#4b5469] transition"
-                  title="Copy to clipboard"
+                  id="btn-import-sequence"
+                  onClick={handleImportClick}
+                  className="absolute top-2 right-2 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#a8c7fa] text-[#062e6f] hover:bg-[#b8d2fa] transition"
+                  title="Import sequence to timeline"
                 >
-                  {isCopied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-[#a8c7fa]" />
-                      <span className="text-[#a8c7fa]">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
-                    </>
-                  )}
+                  <ArrowDownToLine className="w-3.5 h-3.5" />
+                  <span>Import</span>
                 </button>
               </div>
+
+              {/* Import Options Prompt */}
+              {showImportOptions && (
+                <div className="bg-[#212429] border border-[#a8c7fa] rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-[#e2e2e9]">
+                      How would you like to import these {resultData.count} cuts?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowImportOptions(false)}
+                      className="text-[#8e9099] hover:text-[#e2e2e9] p-0.5"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      id="btn-import-replace"
+                      onClick={() => handleSelectImportMode('replace')}
+                      className="flex flex-col items-start p-2.5 rounded-lg bg-[#282a2f] border border-[#44474f] hover:bg-[#33353a] hover:border-[#a8c7fa] transition text-left"
+                    >
+                      <div className="flex items-center space-x-1.5 text-xs font-medium text-[#f2b8b5]">
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Replace Timeline</span>
+                      </div>
+                      <span className="text-[10px] text-[#8e9099] mt-0.5">
+                        Clears existing timeline and starts fresh from 0.0s
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-import-insert"
+                      onClick={() => handleSelectImportMode('insert')}
+                      className="flex flex-col items-start p-2.5 rounded-lg bg-[#282a2f] border border-[#44474f] hover:bg-[#33353a] hover:border-[#a8c7fa] transition text-left"
+                    >
+                      <div className="flex items-center space-x-1.5 text-xs font-medium text-[#a8c7fa]">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Insert at Playhead</span>
+                      </div>
+                      <span className="text-[10px] text-[#8e9099] mt-0.5">
+                        Splices clips into your timeline after current playhead
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Visual Breakdown Chips */}
               <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pt-1">
