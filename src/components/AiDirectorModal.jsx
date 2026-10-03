@@ -15,6 +15,7 @@ import {
   Settings2,
   Clock,
   Layers,
+  ExternalLink,
 } from 'lucide-react';
 import {
   PACING_WPM,
@@ -320,17 +321,17 @@ export default function AiDirectorModal({
                 </button>
               </div>
 
-              {/* Model Choice */}
+              {/* Direct link to create Gemini API key */}
               <div className="flex items-center justify-between pt-1">
-                <label className="text-[11px] text-[#c4c6d0]">Gemini Model</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="bg-[#282a2f] border border-[#44474f] rounded-lg px-2.5 py-1 text-xs text-[#e2e2e9] focus:outline-none focus:border-[#a8c7fa]"
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1.5 text-[11px] text-[#a8c7fa] hover:text-[#d3e3fd] hover:underline"
                 >
-                  <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended)</option>
-                  <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                </select>
+                  <span>Create an API key from Google AI Studio</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             </div>
           )}
