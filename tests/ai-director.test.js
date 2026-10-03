@@ -13,7 +13,7 @@ import {
 } from '../src/utils/aiDirector.js';
 
 describe('AI Director Utilities & Clamping', () => {
-  it('clamps durations strictly between 0.2s and 2.0s with 1 decimal precision', () => {
+  it('clamps durations strictly between 0.2s and 2.0s with 1 decimal precision by default', () => {
     expect(clampDuration(0.05)).toBe(0.2);
     expect(clampDuration(0.19)).toBe(0.2);
     expect(clampDuration(0.6)).toBe(0.6);
@@ -22,6 +22,15 @@ describe('AI Director Utilities & Clamping', () => {
     expect(clampDuration(2.5)).toBe(2.0);
     expect(clampDuration('1.45')).toBe(1.5);
     expect(clampDuration('invalid')).toBe(0.6);
+  });
+
+  it('clamps durations strictly within custom bounds (e.g. 0.3s to 0.6s for high-energy mascot)', () => {
+    expect(clampDuration(0.8, 0.3, 0.6)).toBe(0.6);
+    expect(clampDuration(0.7, 0.3, 0.6)).toBe(0.6);
+    expect(clampDuration(0.1, 0.3, 0.6)).toBe(0.3);
+    expect(clampDuration(0.4, 0.3, 0.6)).toBe(0.4);
+    expect(clampDuration(0.55, 0.3, 0.6)).toBe(0.6);
+    expect(clampDuration('invalid', 0.3, 0.6)).toBe(0.6);
   });
 
   it('sanitizes and matches expression names with fallback', () => {
@@ -133,17 +142,58 @@ describe('AiDirector Service Module', () => {
 
     expect(result.success).toBe(true);
     expect(result.count).toBe(3);
-    // smile, 0.6; wink, 0.3; smile (fallback), 2.0 (clamped from 2.8)
+    // For High-Energy Mascot: strictly clamped between 0.3s and 0.6s
+    // smile, 0.6; wink, 0.3; smile (fallback), 0.6 (clamped from 2.8 down to max 0.6s)
     expect(result.items[0]).toEqual({ expression: 'smile', duration: 0.6, scriptSegment: 'Welcome back!' });
     expect(result.items[1]).toEqual({ expression: 'wink', duration: 0.3, scriptSegment: 'Check this out' });
     expect(result.items[2].expression).toBe('smile'); // fuzzy fallback
-    expect(result.items[2].duration).toBe(2.0); // clamped max 2.0s
-    expect(result.sequenceString).toBe('smile, 0.6; wink, 0.3; smile, 2.0');
-    expect(result.sequenceStringWithExt).toBe('smile.png, 0.6; wink.png, 0.3; smile.png, 2.0');
+    expect(result.items[2].duration).toBe(0.6); // clamped to max 0.6s for high-energy
+    expect(result.sequenceString).toBe('smile, 0.6; wink, 0.3; smile, 0.6');
+    expect(result.sequenceStringWithExt).toBe('smile.png, 0.6; wink.png, 0.3; smile.png, 0.6');
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('models/gemini-3.5-flash-lite:generateContent'),
       expect.anything()
     );
+  });
+
+  it('clamps durations up to 2.0s for standard/deadpan personalities', async () => {
+    const mockApiResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify([
+                  { expression: 'smile', duration: 2.8, scriptSegment: 'Long hold...' },
+                ]),
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockApiResponse,
+    });
+
+    const director = new AiDirector({
+      rateLimiter: new RateLimiter({ maxRequests: 10, cooldownMs: 0 }),
+      fetchImpl: mockFetch,
+    });
+
+    const result = await director.processScript({
+      script: 'Long hold...',
+      personality: 'Deadpan & Sarcastic',
+      availableExpressions: ['smile'],
+      apiKey: 'test-api-key',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.items[0].duration).toBe(2.0); // clamped to default MAX_CLIP_DURATION (2.0s)
+    expect(result.sequenceString).toBe('smile, 2.0');
   });
 
   it('falls back automatically to next candidate model when encountering high demand (503)', async () => {

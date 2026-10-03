@@ -9,7 +9,7 @@ export const PERSONALITY_PRESETS = [
     id: 'high-energy',
     name: 'High-Energy Mascot',
     description: 'Rapid cuts (0.3s–0.6s), expressive reactions, bouncy and enthusiastic.',
-    prompt: 'High-energy, animated, upbeat mascot. Reacts quickly to punchlines and excitement with rapid, dynamic expressions.',
+    prompt: 'High-energy, animated, upbeat mascot. Reacts quickly to punchlines and excitement with rapid, snappy cuts strictly between 0.3s and 0.6s bouncing rapidly between energetic expressions.',
   },
   {
     id: 'deadpan',

@@ -59,13 +59,13 @@ export class RateLimiter {
 }
 
 /**
- * Clamps duration between 0.2s and 2.0s with 1 decimal precision.
+ * Clamps duration between min and max (defaults 0.2s and 2.0s) with 1 decimal precision.
  */
-export function clampDuration(val) {
+export function clampDuration(val, min = MIN_CLIP_DURATION, max = MAX_CLIP_DURATION) {
   const num = typeof val === 'number' ? val : parseFloat(val);
-  if (isNaN(num)) return DEFAULT_CLIP_DURATION;
+  if (isNaN(num)) return Math.min(max, Math.max(min, DEFAULT_CLIP_DURATION));
   const rounded = Math.round(num * 10) / 10;
-  return Math.min(MAX_CLIP_DURATION, Math.max(MIN_CLIP_DURATION, rounded));
+  return Math.min(max, Math.max(min, rounded));
 }
 
 /**
@@ -156,9 +156,19 @@ export class AiDirector {
       ? availableExpressions
       : ['angry', 'blush', 'bruh', 'laughing', 'smile', 'surprised', 'wink'];
 
+    const isHighEnergy = /high[- ]?energy/i.test(personality || '');
+    const minClip = isHighEnergy ? 0.3 : MIN_CLIP_DURATION;
+    const maxClip = isHighEnergy ? 0.6 : MAX_CLIP_DURATION;
+
     const durationInstruction = targetDuration && targetDuration > 0
       ? `The voiceover audio or reading duration is approximately ${targetDuration.toFixed(1)} seconds. Make sure the sum of all clip durations closely matches approximately ${targetDuration.toFixed(1)}s (within +/- 10%).`
       : 'Estimate appropriate timing based on the script pacing, ensuring natural comedic cadence.';
+
+    const highEnergyDirective = isHighEnergy
+      ? `\nCRITICAL DURATION RULE FOR HIGH-ENERGY MASCOT:
+Every clip MUST have a duration strictly between 0.3 and 0.6 seconds (e.g. 0.3, 0.4, 0.5, 0.6).
+NEVER generate any clip longer than 0.6s! If you need to cover more script or speaking time, generate MORE frequent snappy expression cuts (rapidly bouncing between energetic reactions) instead of making individual clips longer.`
+      : '';
 
     const systemInstruction = `You are an expert animated mascot director. You direct mascot reaction animations by choosing the best facial expression for each segment of a voiceover script.
 
@@ -167,13 +177,13 @@ Available Expressions Vocabulary:
 
 Rules:
 1. ONLY choose expressions from the Available Expressions list above.
-2. For each expression cut, assign a duration in seconds between 0.2 and 2.0 (in 0.1s increments).
+2. For each expression cut, assign a duration in seconds between ${minClip.toFixed(1)} and ${maxClip.toFixed(1)} (in 0.1s increments).${highEnergyDirective}
 3. ${durationInstruction}
 4. Reflect the mascot's personality: "${personality}".
 ${customPrompt ? `Additional personality / direction instructions: "${customPrompt}"` : ''}
 5. Return a JSON array of objects, where each object has:
    - "expression": exact name from available expressions list
-   - "duration": number between 0.2 and 2.0
+   - "duration": number between ${minClip.toFixed(1)} and ${maxClip.toFixed(1)}
    - "scriptSegment": the spoken phrase or emotion this expression covers`;
 
     const requestBody = {
@@ -199,6 +209,9 @@ ${customPrompt ? `Additional personality / direction instructions: "${customProm
               },
               duration: {
                 type: 'NUMBER',
+                description: isHighEnergy
+                  ? 'Duration in seconds. MUST be strictly between 0.3 and 0.6 seconds per cut (never exceed 0.6).'
+                  : 'Duration in seconds between 0.2 and 2.0 (in 0.1s increments).',
               },
               scriptSegment: {
                 type: 'STRING',
@@ -305,7 +318,7 @@ ${customPrompt ? `Additional personality / direction instructions: "${customProm
     // Validate, sanitize, fuzzy-match, and clamp
     const validatedItems = parsedItems.map((item) => {
       const expression = matchExpression(item.expression, vocabList);
-      const duration = clampDuration(item.duration);
+      const duration = clampDuration(item.duration, minClip, maxClip);
       return {
         expression,
         duration,
