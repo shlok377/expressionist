@@ -16,6 +16,8 @@ import {
   Clock,
   Layers,
   ExternalLink,
+  Trash2,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   PACING_WPM,
@@ -45,7 +47,7 @@ export default function AiDirectorModal({
   const [manualDuration, setManualDuration] = useState('');
   const [selectedPresetId, setSelectedPresetId] = useState('high-energy');
   const [customPrompt, setCustomPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.8-flash');
 
   // Mic state
   const [isRecording, setIsRecording] = useState(false);
@@ -270,17 +272,26 @@ export default function AiDirectorModal({
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-2">
+            {/* Toggle button besides cross to edit / replace API key */}
             <button
+              type="button"
+              id="btn-toggle-api-key"
               onClick={() => setIsSettingsOpen((prev) => !prev)}
-              className={`p-2 rounded-full transition ${
-                isSettingsOpen || !apiKey
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                isSettingsOpen
                   ? 'bg-[#3f4759] text-[#a8c7fa]'
-                  : 'text-[#c4c6d0] hover:text-[#e2e2e9] hover:bg-[#33353a]'
+                  : 'bg-[#282a2f] text-[#c4c6d0] hover:text-[#e2e2e9] hover:bg-[#33353a]'
               }`}
-              title="API Key & Settings"
+              title="Edit or replace API Key"
             >
-              <Settings2 className="w-4 h-4" />
+              <Key className="w-3.5 h-3.5 text-[#a8c7fa]" />
+              <span>{apiKey ? 'API Key' : 'Set Key'}</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  apiKey ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
+                }`}
+              />
             </button>
             <button
               onClick={onClose}
@@ -296,29 +307,66 @@ export default function AiDirectorModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Settings Collapsible Drawer */}
           {(isSettingsOpen || !apiKey) && (
-            <div className="bg-[#181a1f] border border-[#44474f] rounded-2xl p-4 space-y-3">
+            <div className="bg-[#181a1f] border border-[#36393e] rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-xs font-medium text-[#a8c7fa]">
                   <Key className="w-4 h-4" />
                   <span>Google Gemini API Key</span>
                 </div>
-                <span className="text-[11px] text-[#8e9099]">Stored only in your browser</span>
+                <div className="flex items-center space-x-2">
+                  {apiKey ? (
+                    <span className="flex items-center space-x-1 text-[11px] text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Key Saved</span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-amber-400 font-medium">Key Required</span>
+                  )}
+                  <span className="text-[11px] text-[#8e9099]">• Local browser storage</span>
+                </div>
               </div>
-              <div className="relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste your Gemini API key (AIzaSy...)"
-                  className="w-full bg-[#282a2f] border border-[#44474f] rounded-xl px-3.5 py-2 text-xs font-mono text-[#e2e2e9] placeholder-[#8e9099] focus:outline-none focus:border-[#a8c7fa] pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e9099] hover:text-[#e2e2e9]"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+
+              <div className="flex items-center space-x-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setApiKey(val);
+                      if (val.trim()) {
+                        localStorage.setItem(STORAGE_KEY_GEMINI_API, val.trim());
+                      } else {
+                        localStorage.removeItem(STORAGE_KEY_GEMINI_API);
+                      }
+                    }}
+                    placeholder="Paste your Gemini API key (AIzaSy...)"
+                    className="w-full bg-[#282a2f] border border-[#44474f] rounded-xl px-3.5 py-2 text-xs font-mono text-[#e2e2e9] placeholder-[#8e9099] focus:outline-none focus:border-[#a8c7fa] pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e9099] hover:text-[#e2e2e9]"
+                    title={showApiKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {apiKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApiKey('');
+                      localStorage.removeItem(STORAGE_KEY_GEMINI_API);
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-medium bg-[#3a1a1c] text-[#f2b8b5] hover:bg-[#4a2225] transition flex items-center space-x-1.5 shrink-0"
+                    title="Clear or replace current API Key"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear / Replace</span>
+                  </button>
+                )}
               </div>
 
               {/* Direct link to create Gemini API key */}
@@ -332,6 +380,7 @@ export default function AiDirectorModal({
                   <span>Create an API key from Google AI Studio</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
+                <span className="text-[11px] text-[#8e9099]">Model: gemini-3.8-flash</span>
               </div>
             </div>
           )}
@@ -510,12 +559,22 @@ export default function AiDirectorModal({
           {errorMessage && (
             <div className="flex items-start space-x-2.5 text-xs text-[#f2b8b5] bg-[#3a1a1c] border border-[#8c1d18] p-3 rounded-xl">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <span>{errorMessage}</span>
                 {retryAfterSeconds && (
                   <span className="block mt-1 text-[11px] text-[#ffdad6]">
                     Rate limit cooldown: Retry in {retryAfterSeconds} seconds.
                   </span>
+                )}
+                {!isSettingsOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="mt-1.5 flex items-center space-x-1 text-[11px] text-[#a8c7fa] hover:underline font-medium"
+                  >
+                    <Key className="w-3 h-3" />
+                    <span>Open API Key Settings</span>
+                  </button>
                 )}
               </div>
             </div>

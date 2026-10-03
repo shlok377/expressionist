@@ -135,7 +135,7 @@ export class AiDirector {
     customPrompt = '',
     availableExpressions = [],
     apiKey,
-    model = 'gemini-2.5-flash',
+    model = 'gemini-3.8-flash',
     ip = '127.0.0.1',
   }) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
@@ -210,7 +210,7 @@ ${customPrompt ? `Additional personality / direction instructions: "${customProm
       },
     };
 
-    const targetModel = model || 'gemini-2.5-flash';
+    const targetModel = model || 'gemini-3.8-flash';
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
     let response;

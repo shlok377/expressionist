@@ -140,6 +140,10 @@ describe('AiDirector Service Module', () => {
     expect(result.items[2].duration).toBe(2.0); // clamped max 2.0s
     expect(result.sequenceString).toBe('smile, 0.6; wink, 0.3; smile, 2.0');
     expect(result.sequenceStringWithExt).toBe('smile.png, 0.6; wink.png, 0.3; smile.png, 2.0');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('models/gemini-3.8-flash:generateContent'),
+      expect.anything()
+    );
   });
 
   it('handles Gemini 429 quota errors gracefully', async () => {
