@@ -135,7 +135,7 @@ export class AiDirector {
     customPrompt = '',
     availableExpressions = [],
     apiKey,
-    model = 'gemini-3.8-flash',
+    model = 'gemini-3.5-flash-lite',
     ip = '127.0.0.1',
   }) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
@@ -210,43 +210,79 @@ ${customPrompt ? `Additional personality / direction instructions: "${customProm
       },
     };
 
-    const targetModel = model || 'gemini-3.8-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+    const requestedModel = model || 'gemini-3.5-flash-lite';
+    const fallbackCandidates = [
+      requestedModel,
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-2.5-pro',
+    ];
+    const candidateModels = Array.from(new Set(fallbackCandidates));
 
-    let response;
-    try {
-      response = await this.fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-    } catch (err) {
-      console.error('Fetch network error to Gemini API:', err);
-      throw { status: 502, message: `Failed to connect to Gemini API: ${err.message}` };
-    }
+    let lastError = null;
+    let data = null;
+    let usedModel = requestedModel;
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      let errMsg = `Gemini API returned status ${response.status}`;
+    for (let i = 0; i < candidateModels.length; i++) {
+      const currentModel = candidateModels[i];
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+
       try {
-        const parsed = JSON.parse(errText);
-        if (parsed.error && parsed.error.message) {
-          errMsg = parsed.error.message;
-        }
-      } catch {
-        if (errText) errMsg = errText;
-      }
+        const response = await this.fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (response.status === 400 && errMsg.includes('API_KEY_INVALID')) {
-        throw { status: 401, message: 'Invalid Gemini API key. Please verify your API key in settings.' };
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '');
+          let errMsg = `Gemini API returned status ${response.status}`;
+          try {
+            const parsed = JSON.parse(errText);
+            if (parsed.error && parsed.error.message) {
+              errMsg = parsed.error.message;
+            }
+          } catch {
+            if (errText) errMsg = errText;
+          }
+
+          if (response.status === 400 && errMsg.includes('API_KEY_INVALID')) {
+            throw { status: 401, message: 'Invalid Gemini API key. Please verify your API key in settings.' };
+          }
+
+          const isDemandSpike =
+            response.status === 503 ||
+            errMsg.toLowerCase().includes('high demand') ||
+            errMsg.toLowerCase().includes('overloaded') ||
+            errMsg.toLowerCase().includes('temporarily unavailable') ||
+            errMsg.toLowerCase().includes('no longer available');
+
+          if (isDemandSpike && i < candidateModels.length - 1) {
+            console.warn(`Model ${currentModel} is busy (${errMsg}). Retrying with ${candidateModels[i + 1]}...`);
+            lastError = { status: response.status, message: errMsg };
+            continue;
+          }
+
+          if (response.status === 429) {
+            throw { status: 429, message: 'Gemini API quota exceeded or rate limited. Please try again later.' };
+          }
+
+          throw { status: response.status, message: errMsg };
+        }
+
+        data = await response.json();
+        usedModel = currentModel;
+        break;
+      } catch (err) {
+        if (err.status === 401) throw err;
+        lastError = err;
       }
-      if (response.status === 429) {
-        throw { status: 429, message: 'Gemini API quota exceeded or rate limited. Please try again later.' };
-      }
-      throw { status: response.status, message: errMsg };
     }
 
-    const data = await response.json();
+    if (!data) {
+      throw lastError || { status: 500, message: 'All Gemini model candidates failed.' };
+    }
     const candidate = data.candidates?.[0];
     const textContent = candidate?.content?.parts?.[0]?.text;
 
@@ -288,6 +324,7 @@ ${customPrompt ? `Additional personality / direction instructions: "${customProm
       items: validatedItems,
       totalDuration,
       count: validatedItems.length,
+      usedModel,
     };
   }
 }

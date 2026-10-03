@@ -141,9 +141,57 @@ describe('AiDirector Service Module', () => {
     expect(result.sequenceString).toBe('smile, 0.6; wink, 0.3; smile, 2.0');
     expect(result.sequenceStringWithExt).toBe('smile.png, 0.6; wink.png, 0.3; smile.png, 2.0');
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('models/gemini-3.8-flash:generateContent'),
+      expect.stringContaining('models/gemini-3.5-flash-lite:generateContent'),
       expect.anything()
     );
+  });
+
+  it('falls back automatically to next candidate model when encountering high demand (503)', async () => {
+    const mockApiResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify([
+                  { expression: 'smile', duration: 0.6 },
+                ]),
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    // First call to gemini-3.8-flash fails with 503 high demand; second call to fallback succeeds
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => JSON.stringify({ error: { message: 'This model is currently experiencing high demand.' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockApiResponse,
+      });
+
+    const director = new AiDirector({
+      rateLimiter: new RateLimiter({ maxRequests: 10, cooldownMs: 0 }),
+      fetchImpl: mockFetch,
+    });
+
+    const result = await director.processScript({
+      script: 'Hello world',
+      model: 'gemini-3.8-flash',
+      availableExpressions: ['smile'],
+      apiKey: 'test-api-key',
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.usedModel).toBe('gemini-3.5-flash-lite');
   });
 
   it('handles Gemini 429 quota errors gracefully', async () => {

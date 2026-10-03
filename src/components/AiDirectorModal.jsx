@@ -47,7 +47,7 @@ export default function AiDirectorModal({
   const [manualDuration, setManualDuration] = useState('');
   const [selectedPresetId, setSelectedPresetId] = useState('high-energy');
   const [customPrompt, setCustomPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash-lite');
 
   // Mic state
   const [isRecording, setIsRecording] = useState(false);
@@ -369,18 +369,35 @@ export default function AiDirectorModal({
                 )}
               </div>
 
-              {/* Direct link to create Gemini API key */}
-              <div className="flex items-center justify-between pt-1">
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-1.5 text-[11px] text-[#a8c7fa] hover:text-[#d3e3fd] hover:underline"
-                >
-                  <span>Create an API key from Google AI Studio</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-                <span className="text-[11px] text-[#8e9099]">Model: gemini-3.8-flash</span>
+              {/* Model Choice & AI Studio Link */}
+              <div className="pt-2 border-t border-[#282a2f] space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] text-[#c4c6d0]">Gemini Model</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="bg-[#282a2f] border border-[#44474f] rounded-lg px-2.5 py-1 text-xs text-[#e2e2e9] focus:outline-none focus:border-[#a8c7fa]"
+                  >
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Lowest Demand - Recommended)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (Stable GA)</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+                    <option value="gemini-3.7-flash">gemini-3.7-flash</option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                  </select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 text-[11px] text-[#a8c7fa] hover:text-[#d3e3fd] hover:underline"
+                  >
+                    <span>Create an API key from Google AI Studio</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <span className="text-[10px] text-[#8e9099]">Auto-fallback on high demand</span>
+                </div>
               </div>
             </div>
           )}
@@ -612,7 +629,7 @@ export default function AiDirectorModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-xs font-medium text-[#a8c7fa]">
                   <Layers className="w-4 h-4" />
-                  <span>Generated Sequence ({resultData.count} cuts, {resultData.totalDuration}s total)</span>
+                  <span>Generated Sequence ({resultData.count} cuts, {resultData.totalDuration}s total • {resultData.usedModel || selectedModel})</span>
                 </div>
                 {/* Format Toggle */}
                 <div className="flex bg-[#282a2f] p-0.5 rounded-lg border border-[#44474f]">
