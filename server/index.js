@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import chokidar from 'chokidar';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { syncExpressionManifest } from './expressionManifest.js';
+import { AiDirector } from './AiDirector.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -14,14 +16,18 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const EXPRESSIONS_DIR = path.join(ROOT_DIR, 'expressions');
 const TEMP_DIR = path.join(ROOT_DIR, 'temp files');
+const MANIFEST_PATH = path.join(ROOT_DIR, 'expressions_list.json');
 
-// Ensure directories exist
+// Ensure directories exist and sync initial expressions manifest
 if (!fs.existsSync(EXPRESSIONS_DIR)) {
   fs.mkdirSync(EXPRESSIONS_DIR, { recursive: true });
 }
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
+syncExpressionManifest(EXPRESSIONS_DIR, MANIFEST_PATH);
+
+const aiDirector = new AiDirector();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -66,6 +72,20 @@ app.get('/api/expressions', (req, res) => {
   res.json({ expressions, count: expressions.length });
 });
 
+// GET /api/expressions/manifest
+app.get('/api/expressions/manifest', (req, res) => {
+  try {
+    if (fs.existsSync(MANIFEST_PATH)) {
+      const content = fs.readFileSync(MANIFEST_PATH, 'utf-8');
+      return res.json({ names: JSON.parse(content) });
+    }
+  } catch (err) {
+    console.error('Error reading manifest file:', err);
+  }
+  const names = syncExpressionManifest(EXPRESSIONS_DIR, MANIFEST_PATH);
+  res.json({ names });
+});
+
 // SSE endpoint for live file watching
 const sseClients = new Set();
 
@@ -89,6 +109,7 @@ app.get('/api/expressions/stream', (req, res) => {
 });
 
 function broadcastExpressionsUpdate() {
+  syncExpressionManifest(EXPRESSIONS_DIR, MANIFEST_PATH);
   const list = getExpressionsList();
   const payload = JSON.stringify({
     event: 'update',
@@ -113,10 +134,59 @@ watcher.on('add', () => broadcastExpressionsUpdate());
 watcher.on('unlink', () => broadcastExpressionsUpdate());
 watcher.on('change', () => broadcastExpressionsUpdate());
 
+// POST /api/ai/director
+app.post('/api/ai/director', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-gemini-api-key'];
+    const { script, targetDuration, personality, customPrompt, model } = req.body;
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+
+    let availableExpressions = [];
+    try {
+      if (fs.existsSync(MANIFEST_PATH)) {
+        availableExpressions = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
+      }
+    } catch {
+      availableExpressions = syncExpressionManifest(EXPRESSIONS_DIR, MANIFEST_PATH);
+    }
+    if (!availableExpressions || availableExpressions.length === 0) {
+      availableExpressions = syncExpressionManifest(EXPRESSIONS_DIR, MANIFEST_PATH);
+    }
+
+    const result = await aiDirector.processScript({
+      script,
+      targetDuration: targetDuration ? parseFloat(targetDuration) : null,
+      personality,
+      customPrompt,
+      availableExpressions,
+      apiKey,
+      model,
+      ip: clientIp,
+    });
+
+    res.json(result);
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'AI Director generation failed';
+    res.status(status).json({
+      error: message,
+      retryAfter: err.retryAfter,
+    });
+  }
+});
+
 // POST /api/export with Bouncy Squash & Stretch Transition support
 app.post('/api/export', async (req, res) => {
   try {
-    const { clips, transitionSettings = {}, transitionDuration } = req.body;
+    const {
+      clips,
+      transitionSettings = {},
+      transitionDuration,
+      bounceIntensity,
+      squashFactor,
+      globalScale = 1.0,
+    } = req.body;
+
     if (!Array.isArray(clips) || clips.length === 0) {
       return res.status(400).json({ error: 'No clips provided for export' });
     }
@@ -127,12 +197,23 @@ app.post('/api/export', async (req, res) => {
     );
     const intensity = Math.max(
       0,
-      Math.min(0.30, isNaN(parseFloat(transitionSettings.intensity)) ? 0.04 : parseFloat(transitionSettings.intensity))
+      Math.min(
+        0.30,
+        isNaN(parseFloat(transitionSettings.intensity ?? bounceIntensity))
+          ? 0.04
+          : parseFloat(transitionSettings.intensity ?? bounceIntensity)
+      )
     );
     const squash = Math.max(
       0,
-      Math.min(0.25, isNaN(parseFloat(transitionSettings.squash)) ? 0.18 : parseFloat(transitionSettings.squash))
+      Math.min(
+        0.25,
+        isNaN(parseFloat(transitionSettings.squash ?? squashFactor))
+          ? 0.18
+          : parseFloat(transitionSettings.squash ?? squashFactor)
+      )
     );
+    const scale = Math.max(0.1, Math.min(3.0, parseFloat(globalScale) || 1.0));
 
     const timestamp = Date.now();
     const outputFileName = `export_${timestamp}.mp4`;
@@ -160,8 +241,8 @@ app.post('/api/export', async (req, res) => {
       ffmpegArgs.push('-loop', '1', '-t', clip.duration.toString(), '-i', fullImagePath);
 
       // Truncate to even dimensions to ensure strict YUV420p alignment
-      const wExpr = `trunc(1792*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1+${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5))/2)*2`;
-      const hExpr = `trunc(2400*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1-${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5)*0.75)/2)*2`;
+      const wExpr = `trunc(1792*${scale}*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1+${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5))/2)*2`;
+      const hExpr = `trunc(2400*${scale}*(1+${intensity}*exp(-5*t/${duration})*cos(t/${duration}*3.14159*2))*(1-${squash}*exp(-6*t/${duration})*sin(t/${duration}*3.14159*2.5)*0.75)/2)*2`;
 
       // Use a #00ff00 (green) 1792x2400 canvas and overlay centered to eliminate out-of-bounds crop errors
       filterChains.push(
@@ -199,6 +280,7 @@ app.post('/api/export', async (req, res) => {
       size: stats.size,
       totalDuration: clips.reduce((acc, c) => acc + (c.duration || 0), 0),
       transitionSettings: { duration, intensity, squash },
+      globalScale: scale,
     });
   } catch (err) {
     console.error('Export error:', err);

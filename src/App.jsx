@@ -5,6 +5,8 @@ import Timeline from './components/Timeline.jsx';
 import PickExpressionModal from './components/PickExpressionModal.jsx';
 import ModifyDurationModal from './components/ModifyDurationModal.jsx';
 import CustomizeTransitionModal from './components/CustomizeTransitionModal.jsx';
+import ModifyScaleModal from './components/ModifyScaleModal.jsx';
+import AiDirectorModal from './components/AiDirectorModal.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import {
   calculateTotalDuration,
@@ -16,9 +18,11 @@ import {
   replaceClipExpression,
   clampDuration,
   clampTransitionDuration,
+  clampGlobalScale,
   DEFAULT_TRANSITION_DURATION,
   DEFAULT_BOUNCE_INTENSITY,
   DEFAULT_SQUASH_FACTOR,
+  DEFAULT_GLOBAL_SCALE,
   PlayheadController,
 } from './utils/timeline.js';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
@@ -26,6 +30,7 @@ import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 const STORAGE_KEY_CLIPS = 'expressionist_clips';
 const STORAGE_KEY_EXPORTED = 'expressionist_has_exported';
 const STORAGE_KEY_TRANSITION_SETTINGS = 'expressionist_transition_settings';
+const STORAGE_KEY_GLOBAL_SCALE = 'expressionist_global_scale';
 
 export default function App() {
   // Library state
@@ -65,6 +70,16 @@ export default function App() {
     }
   });
 
+  // Global Expression Scale (0.1x to 3.0x, default 1.0x)
+  const [globalScale, setGlobalScale] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_GLOBAL_SCALE);
+      return saved ? parseFloat(saved) : DEFAULT_GLOBAL_SCALE;
+    } catch {
+      return DEFAULT_GLOBAL_SCALE;
+    }
+  });
+
   // History state for Undo / Redo
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
@@ -85,6 +100,8 @@ export default function App() {
   });
   const [isModifyDurationOpen, setIsModifyDurationOpen] = useState(false);
   const [isCustomizeTransitionOpen, setIsCustomizeTransitionOpen] = useState(false);
+  const [isModifyScaleOpen, setIsModifyScaleOpen] = useState(false);
+  const [isAiDirectorOpen, setIsAiDirectorOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, clip }
 
   // Export state & Toast
@@ -109,6 +126,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_TRANSITION_SETTINGS, JSON.stringify(transitionSettings));
   }, [transitionSettings]);
+
+  // Auto-save global scale
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_GLOBAL_SCALE, globalScale.toString());
+  }, [globalScale]);
 
   // Load expressions & connect SSE
   useEffect(() => {
@@ -210,6 +232,7 @@ export default function App() {
         setPickModalState({ isOpen: false, mode: 'insert', targetClip: null });
         setIsModifyDurationOpen(false);
         setIsCustomizeTransitionOpen(false);
+        setIsAiDirectorOpen(false);
         setContextMenu(null);
       }
     };
@@ -278,6 +301,10 @@ export default function App() {
         body: JSON.stringify({
           clips,
           transitionSettings,
+          globalScale: clampGlobalScale(globalScale),
+          transitionDuration: transitionSettings.duration,
+          bounceIntensity: transitionSettings.intensity,
+          squashFactor: transitionSettings.squash,
         }),
       });
 
@@ -327,9 +354,10 @@ export default function App() {
         onPickExpression={() =>
           setPickModalState({ isOpen: true, mode: 'insert', targetClip: null })
         }
+        onOpenAiDirector={() => setIsAiDirectorOpen(true)}
         onDeleteSelected={handleDeleteSelected}
         onTogglePlay={() => setIsPlaying((p) => !p)}
-        onModifyDuration={() => setIsModifyDurationOpen(true)}
+        onOpenModifyScale={() => setIsModifyScaleOpen(true)}
         onExport={handleExport}
         onResetProject={handleResetProject}
         onUndo={handleUndo}
@@ -346,6 +374,7 @@ export default function App() {
           transitionDuration={transitionSettings.duration}
           bounceIntensity={transitionSettings.intensity}
           squashFactor={transitionSettings.squash}
+          globalScale={globalScale}
           playheadController={playheadController}
           onPlayheadChange={setPlayhead}
           onTogglePlay={(val) => setIsPlaying((p) => (typeof val === 'boolean' ? val : !p))}
@@ -384,6 +413,14 @@ export default function App() {
         onClose={() => setIsModifyDurationOpen(false)}
       />
 
+      {/* Modify Scale Modal - M3 Dialog */}
+      <ModifyScaleModal
+        isOpen={isModifyScaleOpen}
+        globalScale={globalScale}
+        onSave={(newScale) => setGlobalScale(newScale)}
+        onClose={() => setIsModifyScaleOpen(false)}
+      />
+
       {/* Customize Transition Modal - M3 Dialog */}
       <CustomizeTransitionModal
         isOpen={isCustomizeTransitionOpen}
@@ -391,6 +428,13 @@ export default function App() {
         sampleImageUrl={clips[0]?.expression?.url || expressions[0]?.url}
         onSave={(newSettings) => setTransitionSettings(newSettings)}
         onClose={() => setIsCustomizeTransitionOpen(false)}
+      />
+
+      {/* AI Script Director Modal - M3 Dialog */}
+      <AiDirectorModal
+        isOpen={isAiDirectorOpen}
+        onClose={() => setIsAiDirectorOpen(false)}
+        availableExpressions={expressions}
       />
 
       {/* Right Click Context Menu - M3 Menu */}
@@ -439,6 +483,9 @@ export default function App() {
           }}
           onCustomizeTransition={() => {
             setIsCustomizeTransitionOpen(true);
+          }}
+          onOpenModifyScale={() => {
+            setIsModifyScaleOpen(true);
           }}
         />
       )}

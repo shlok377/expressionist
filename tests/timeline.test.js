@@ -8,6 +8,11 @@ import {
   DEFAULT_SQUASH_FACTOR,
   MIN_TRANSITION_DURATION,
   MAX_TRANSITION_DURATION,
+  DEFAULT_GLOBAL_SCALE,
+  MIN_GLOBAL_SCALE,
+  MAX_GLOBAL_SCALE,
+  GLOBAL_SCALE_STEP,
+  clampGlobalScale,
   clampDuration,
   clampTransitionDuration,
   calculateScalePop,
@@ -211,3 +216,21 @@ describe('Transition Logic', () => {
     expect(settled.scaleY).toBe(1.0);
   });
 });
+
+describe('Global Scale Logic', () => {
+  it('defines correct scale bounds and step constants', () => {
+    expect(DEFAULT_GLOBAL_SCALE).toBe(1.0);
+    expect(MIN_GLOBAL_SCALE).toBe(0.1);
+    expect(MAX_GLOBAL_SCALE).toBe(3.0);
+    expect(GLOBAL_SCALE_STEP).toBe(0.05);
+  });
+
+  it('clamps global scale values correctly between 0.1 and 3.0', () => {
+    expect(clampGlobalScale(0.05)).toBe(0.1);
+    expect(clampGlobalScale(1.0)).toBe(1.0);
+    expect(clampGlobalScale(2.55)).toBe(2.55);
+    expect(clampGlobalScale(3.5)).toBe(3.0);
+    expect(clampGlobalScale(1.25000001)).toBe(1.25);
+  });
+});
+

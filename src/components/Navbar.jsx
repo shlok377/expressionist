@@ -1,15 +1,15 @@
-import React from 'react';
 import {
   Plus,
   Trash2,
   Play,
   Pause,
-  Clock,
+  Maximize2,
   Download,
   RotateCcw,
   Undo2,
   Redo2,
   Film,
+  Sparkles,
 } from 'lucide-react';
 
 export default function Navbar({
@@ -22,9 +22,10 @@ export default function Navbar({
   isExporting,
   totalDuration,
   onPickExpression,
+  onOpenAiDirector,
   onDeleteSelected,
   onTogglePlay,
-  onModifyDuration,
+  onOpenModifyScale,
   onExport,
   onResetProject,
   onUndo,
@@ -61,6 +62,17 @@ export default function Navbar({
           <span>Pick Expression</span>
         </button>
 
+        {/* 1b. AI Director - M3 Tonal Primary Button */}
+        <button
+          id="btn-ai-director"
+          onClick={onOpenAiDirector}
+          className="flex items-center space-x-1.5 px-3.5 py-2 rounded-full text-xs font-medium bg-[#0842a0] text-[#d3e3fd] hover:bg-[#0b50bd] transition shadow-sm"
+          title="AI Script Director: map script/audio to expressions"
+        >
+          <Sparkles className="w-4 h-4 text-[#a8c7fa]" />
+          <span>AI Director</span>
+        </button>
+
         {/* 2. Delete - M3 Tonal Error Button */}
         <button
           id="btn-delete-clip"
@@ -88,20 +100,15 @@ export default function Navbar({
           <span>{isPlaying ? 'Pause' : 'Play'}</span>
         </button>
 
-        {/* 4. Modify Duration - M3 Outlined Button */}
+        {/* 4. Modify Scale - M3 Outlined Button */}
         <button
-          id="btn-modify-duration"
-          onClick={onModifyDuration}
-          disabled={!selectedClip}
-          className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition ${
-            selectedClip
-              ? 'border border-[#8e9099] text-[#e2e2e9] hover:bg-[#33353a]'
-              : 'border border-[#44474f] text-[#8e9099] opacity-30 cursor-not-allowed'
-          }`}
-          title={selectedClip ? `Modify duration for ${selectedClip.expression.name}` : 'Select a clip to modify duration'}
+          id="btn-modify-scale"
+          onClick={onOpenModifyScale}
+          className="flex items-center space-x-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#8e9099] text-[#e2e2e9] hover:bg-[#33353a] transition"
+          title="Modify scale for all timeline expressions"
         >
-          <Clock className="w-4 h-4" />
-          <span>Modify Duration</span>
+          <Maximize2 className="w-4 h-4 text-[#a8c7fa]" />
+          <span>Modify Scale</span>
         </button>
       </div>
 

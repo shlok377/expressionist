@@ -5,6 +5,7 @@ import {
   DEFAULT_TRANSITION_DURATION,
   DEFAULT_BOUNCE_INTENSITY,
   DEFAULT_SQUASH_FACTOR,
+  DEFAULT_GLOBAL_SCALE,
 } from '../utils/timeline.js';
 import { Image as ImageIcon, Play, Pause } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export default function PreviewCanvas({
   transitionDuration = DEFAULT_TRANSITION_DURATION,
   bounceIntensity = DEFAULT_BOUNCE_INTENSITY,
   squashFactor = DEFAULT_SQUASH_FACTOR,
+  globalScale = DEFAULT_GLOBAL_SCALE,
   playheadController,
   onPlayheadChange,
   onTogglePlay,
@@ -27,7 +29,7 @@ export default function PreviewCanvas({
   const bitmapCacheRef = useRef(new Map());
   const imageFallbackCacheRef = useRef(new Map());
   const currentClipIdRef = useRef(null);
-  const lastDrawnTransformRef = useRef({ scaleX: 1.0, scaleY: 1.0 });
+  const lastDrawnTransformRef = useRef({ scaleX: 1.0, scaleY: 1.0, globalScale: 1.0 });
   const playheadRef = useRef(playhead);
   const isPlayingRef = useRef(isPlaying);
   const timeDisplayRef = useRef(null);
@@ -101,7 +103,7 @@ export default function PreviewCanvas({
   }, [clips, loadPreScaledBitmap]);
 
   /**
-   * Draws the active clip with bouncy squash & stretch center transform and dirty checking.
+   * Draws the active clip with bouncy squash & stretch center transform, global scaling, and dirty checking.
    */
   const drawClip = useCallback((clip, force = false, scaleX = 1.0, scaleY = 1.0) => {
     const canvas = canvasRef.current;
@@ -114,13 +116,13 @@ export default function PreviewCanvas({
         ctx.fillStyle = '#00ff00';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         currentClipIdRef.current = null;
-        lastDrawnTransformRef.current = { scaleX: 1.0, scaleY: 1.0 };
+        lastDrawnTransformRef.current = { scaleX: 1.0, scaleY: 1.0, globalScale };
         setActiveClipName(null);
       }
       return;
     }
 
-    // Optimization: Dirty check - skip redraw if clip is identical and scale has settled at 1.0
+    // Optimization: Dirty check - skip redraw if clip is identical and transform hasn't changed
     const lastTransform = lastDrawnTransformRef.current;
     if (
       !force &&
@@ -128,21 +130,24 @@ export default function PreviewCanvas({
       scaleX === 1.0 &&
       scaleY === 1.0 &&
       lastTransform.scaleX === 1.0 &&
-      lastTransform.scaleY === 1.0
+      lastTransform.scaleY === 1.0 &&
+      lastTransform.globalScale === globalScale
     ) {
       return;
     }
 
     currentClipIdRef.current = clip.id;
-    lastDrawnTransformRef.current = { scaleX, scaleY };
+    lastDrawnTransformRef.current = { scaleX, scaleY, globalScale };
     setActiveClipName(clip.expression?.name || null);
 
     const imgUrl = clip.expression?.url;
     const bitmap = bitmapCacheRef.current.get(imgUrl);
 
-    // Calculate dimensions with bouncy horizontal squash & stretch centered
-    const drawWidth = CANVAS_WIDTH * scaleX;
-    const drawHeight = CANVAS_HEIGHT * scaleY;
+    // Calculate dimensions with bouncy horizontal squash & stretch and global scale centered
+    const effectiveScaleX = scaleX * globalScale;
+    const effectiveScaleY = scaleY * globalScale;
+    const drawWidth = CANVAS_WIDTH * effectiveScaleX;
+    const drawHeight = CANVAS_HEIGHT * effectiveScaleY;
     const offsetX = (CANVAS_WIDTH - drawWidth) / 2;
     const offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
 
@@ -173,8 +178,8 @@ export default function PreviewCanvas({
           baseHeight = CANVAS_WIDTH / imgAspect;
         }
 
-        const scaledW = baseWidth * scaleX;
-        const scaledH = baseHeight * scaleY;
+        const scaledW = baseWidth * effectiveScaleX;
+        const scaledH = baseHeight * effectiveScaleY;
         const fbOffsetX = (CANVAS_WIDTH - scaledW) / 2;
         const fbOffsetY = (CANVAS_HEIGHT - scaledH) / 2;
 
@@ -195,7 +200,7 @@ export default function PreviewCanvas({
         }
       });
     }
-  }, [loadPreScaledBitmap]);
+  }, [loadPreScaledBitmap, globalScale]);
 
   // Subscribe to playheadController for instant scrubbing sync outside React lifecycle
   useEffect(() => {

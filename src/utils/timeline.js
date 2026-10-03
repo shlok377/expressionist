@@ -8,6 +8,19 @@ export const DEFAULT_SQUASH_FACTOR = 0.18;        // 18% horizontal squash/stret
 export const MIN_TRANSITION_DURATION = 0.03;      // 30ms
 export const MAX_TRANSITION_DURATION = 0.30;      // 300ms
 
+export const DEFAULT_GLOBAL_SCALE = 1.0;
+export const MIN_GLOBAL_SCALE = 0.1;
+export const MAX_GLOBAL_SCALE = 3.0;
+export const GLOBAL_SCALE_STEP = 0.05;
+
+/**
+ * Clamps global expression scale between 0.1 and 3.0 with 2 decimal precision.
+ */
+export function clampGlobalScale(scale) {
+  const rounded = Math.round(scale * 100) / 100;
+  return Math.min(MAX_GLOBAL_SCALE, Math.max(MIN_GLOBAL_SCALE, rounded));
+}
+
 export const TRANSITION_PRESETS = [
   { id: 'smooth-squash', name: 'Default (Smooth Squash)', duration: 0.30, intensity: 0.04, squash: 0.18 },
   { id: 'snappy', name: 'Snappy Spring', duration: 0.10, intensity: 0.08, squash: 0.06 },

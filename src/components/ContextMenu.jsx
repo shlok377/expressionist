@@ -8,6 +8,7 @@ import {
   Trash2,
   Zap,
   Sliders,
+  Maximize2,
 } from 'lucide-react';
 import { MIN_TRANSITION_DURATION, MAX_TRANSITION_DURATION } from '../utils/timeline.js';
 
@@ -28,6 +29,7 @@ export default function ContextMenu({
   onIncreaseTransition,
   onDecreaseTransition,
   onCustomizeTransition,
+  onOpenModifyScale,
 }) {
   const menuRef = useRef(null);
 
@@ -138,6 +140,18 @@ export default function ContextMenu({
         >
           <Sliders className="w-4 h-4" />
           <span>Customize Transition More...</span>
+        </button>
+
+        {/* Option to Modify Global Expression Scale */}
+        <button
+          onClick={() => {
+            onOpenModifyScale();
+            onClose();
+          }}
+          className="w-full px-3.5 py-2 flex items-center space-x-2.5 hover:bg-[#33353a] text-[#a8c7fa] font-medium transition text-left"
+        >
+          <Maximize2 className="w-4 h-4" />
+          <span>Modify Expression Scale...</span>
         </button>
 
         <button
